@@ -21,6 +21,7 @@
   top:auto;
   left:auto;
   width:auto;
+  max-width:calc(100vw - 112px);
   min-width:0;
   overflow:hidden;
 
@@ -32,9 +33,17 @@
   border-radius:18px;
 
   background:transparent;
-
-  transition:.45s cubic-bezier(.19,1,.22,1);
+  transform-origin:center center;
+  transition:
+    transform .42s cubic-bezier(.19,1,.22,1),
+    opacity .28s ease,
+    width .28s ease,
+    padding .28s ease,
+    background .28s ease,
+    filter .28s ease;
   opacity:0;
+  filter:blur(3px);
+  will-change:transform, opacity, width, filter;
 }
 
 .hud:not(.visible){
@@ -54,6 +63,7 @@
        .hud.show{
   transform:translateY(0) scale(1);
   --scale:1;
+  filter:blur(0);
 }
 .hud.visible{
   opacity:1;
@@ -66,7 +76,7 @@
 
 .hud .distance{
   font-size:28px;
-  min-width:70px;
+  min-width:52px;
 }
 
 .hud .distance.hidden{
@@ -81,7 +91,7 @@
 }
 
 .hud .hud-inner{
-  gap:12px;
+  gap:10px;
 }
 
         .hidden{
@@ -99,11 +109,13 @@
         .hud-center{
           display:flex;
           flex-direction:column;
+          min-width:0;
         }
         .hud-next{
   display:flex;
   align-items:center;
-  gap:10px;
+  gap:8px;
+  min-width:0;
 }
 
         .turnIcon{
@@ -116,7 +128,7 @@
           font-weight:700;
           letter-spacing:1px;
           white-space:nowrap;
-           min-width:140px;
+           min-width:0;
            color:#fff;
             text-align:center;
           transition:.18s;
@@ -126,7 +138,7 @@
         .road{
           font-size:20px;
           opacity:.75;
-          max-width:260px;
+          max-width:160px;
         }
 
         .limit{
@@ -179,11 +191,15 @@
 }
 
 .hud-row.compact-dual{
-  gap:4px;
-  transform:translateX(calc(-50% + 28px));
+  gap:0;
+  transform:translateX(-50%);
 }
 
 .hud-row.compact-dual .hud-top{
+  position:absolute;
+  left:100%;
+  top:0;
+  margin-left:4px;
   padding:12px 12px;
 }
 
@@ -211,9 +227,16 @@
   border-radius:18px;
 
    background:transparent;
-
-  transition:.4s cubic-bezier(.22,.61,.36,1);
+  transform-origin:left center;
+  transition:
+    transform .4s cubic-bezier(.22,.61,.36,1),
+    opacity .26s ease,
+    width .24s ease,
+    padding .24s ease,
+    filter .24s ease;
   opacity:0;
+  filter:blur(3px);
+  will-change:transform, opacity, width, filter;
 }
 
 .hud-top:not(.show){
@@ -225,6 +248,7 @@
 .hud-top.show{
   transform:translateY(0) scale(1);
   opacity:1;
+  filter:blur(0);
 }
 
 
@@ -247,6 +271,16 @@
 
 .hud-top .hud-inner{
   gap:10px;
+}
+
+.turnIcon,
+.limit,
+.distance,
+.road{
+  transition:
+    transform .24s ease,
+    opacity .24s ease,
+    filter .24s ease;
 }
 
   .gps{
@@ -416,7 +450,7 @@
 
         .hud{
           border-radius:20px;
-          padding:14px 20px 13px;
+          padding:14px 16px 13px;
         }
 
         .hud-top{
@@ -442,6 +476,14 @@
           animation: turnFloat 2.4s ease-in-out infinite;
         }
 
+        .hud.show .hud-inner{
+          animation: hudContentIn .48s cubic-bezier(.22,.61,.36,1);
+        }
+
+        .hud-top.show .hud-inner{
+          animation: topContentIn .42s cubic-bezier(.22,.61,.36,1);
+        }
+
         .distance{
           color:var(--text-main);
           text-shadow:0 0 18px rgba(126,231,255,.12);
@@ -456,7 +498,7 @@
           white-space:nowrap;
           overflow:hidden;
           text-overflow:ellipsis;
-          max-width:240px;
+          max-width:132px;
         }
 
         .limit{
@@ -479,9 +521,9 @@
         }
 
         .hud .limit{
-          width:72px;
-          height:72px;
-          font-size:36px;
+          width:68px;
+          height:68px;
+          font-size:34px;
         }
 
         .hud-top .limit{
@@ -497,11 +539,15 @@
         }
 
         .hud-row.compact-dual{
-          gap:6px;
-          transform:translateX(calc(-50% + 18px));
+          gap:0;
+          transform:translateX(-50%);
         }
 
         .hud-row.compact-dual .hud-top{
+          position:absolute;
+          left:100%;
+          top:0;
+          margin-left:6px;
           padding:11px 11px 10px;
         }
 
@@ -586,8 +632,27 @@
         }
 
         @keyframes topPanelIn{
-          0%{ opacity:0; transform:translateY(-90px) scale(.88); }
+          0%{ opacity:0; transform:translateX(-8px) translateY(-16px) scale(.9); filter:blur(3px); }
+          100%{ opacity:1; transform:translateX(0) translateY(0) scale(1); filter:blur(0); }
+        }
+
+        @keyframes hudPanelIn{
+          0%{ opacity:0; transform:translateY(-18px) scale(.94); filter:blur(4px); }
+          100%{ opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+        }
+
+        @keyframes hudContentIn{
+          0%{ opacity:0; transform:translateY(8px) scale(.98); }
           100%{ opacity:1; transform:translateY(0) scale(1); }
+        }
+
+        @keyframes topContentIn{
+          0%{ opacity:0; transform:translateX(-6px); }
+          100%{ opacity:1; transform:translateX(0); }
+        }
+
+        .hud.show{
+          animation:hudPanelIn .44s cubic-bezier(.19,1,.22,1);
         }
     </style>
 </head>
