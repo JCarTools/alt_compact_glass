@@ -181,7 +181,7 @@
 
 .hud-row{
   position:absolute;
-  top:47px;
+  top:32px;
   left:50%;
   transform:translateX(-50%);
   display:flex;
@@ -285,7 +285,7 @@
 
   .gps{
     position:absolute;
-    top:47px;
+    top:32px;
     left:50%;
     transform:translateX(-500%);
 
@@ -440,8 +440,8 @@
         .hud-top::after{
           content:"";
           position:absolute;
-          inset:auto 18px 8px;
-          height:2px;
+          inset:auto 12px 6px;
+          height:1px;
           border-radius:999px;
           background:linear-gradient(90deg, rgba(126,231,255,0), rgba(126,231,255,.8), rgba(88,166,255,0));
           opacity:.45;
@@ -449,13 +449,13 @@
         }
 
         .hud{
-          border-radius:20px;
-          padding:14px 16px 13px;
+          border-radius:14px;
+          padding:8px 11px 7px;
         }
 
         .hud-top{
-          border-radius:17px;
-          padding:12px 16px 11px;
+          border-radius:12px;
+          padding:8px 10px 8px;
         }
 
         .hud.both{
@@ -470,6 +470,16 @@
         .turnIcon{
           filter:drop-shadow(0 0 12px rgba(126,231,255,.2));
           transform-origin:center;
+        }
+
+        .hud .turnIcon{
+          width:24px;
+          height:24px;
+        }
+
+        .hud-top .turnIcon{
+          width:20px;
+          height:20px;
         }
 
         .hud.show .turnIcon{
@@ -489,16 +499,25 @@
           text-shadow:0 0 18px rgba(126,231,255,.12);
         }
 
+        .hud .distance{
+          min-width:40px;
+          font-size:19px;
+        }
+
         .road{
-          margin-top:4px;
-          font-size:15px;
+          margin-top:2px;
+          font-size:10px;
           letter-spacing:.08em;
           text-transform:uppercase;
           color:var(--text-soft);
           white-space:nowrap;
           overflow:hidden;
           text-overflow:ellipsis;
-          max-width:132px;
+          max-width:90px;
+        }
+
+        .hud .road{
+          display:none;
         }
 
         .limit{
@@ -521,21 +540,21 @@
         }
 
         .hud .limit{
-          width:68px;
-          height:68px;
-          font-size:34px;
+          width:44px;
+          height:44px;
+          font-size:22px;
         }
 
         .hud-top .limit{
-          width:32px;
-          height:32px;
-          font-size:17px;
-          border-width:3px;
+          width:22px;
+          height:22px;
+          font-size:12px;
+          border-width:2px;
         }
 
         .hud-top .distance{
-          min-width:64px;
-          font-size:22px;
+          min-width:42px;
+          font-size:15px;
         }
 
         .hud-row.compact-dual{
@@ -547,20 +566,20 @@
           position:absolute;
           left:100%;
           top:0;
-          margin-left:6px;
-          padding:11px 11px 10px;
+          margin-left:4px;
+          padding:7px 8px 7px;
         }
 
         .hud-row.compact-dual .hud-top .distance{
-          min-width:48px;
-          font-size:20px;
+          min-width:34px;
+          font-size:13px;
         }
 
         .gps{
-          width:39px;
-          height:39px;
-          padding:8px;
-          border-radius:15px;
+          width:28px;
+          height:28px;
+          padding:5px;
+          border-radius:10px;
           transform:translateX(-540%);
         }
 
