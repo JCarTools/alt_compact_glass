@@ -181,7 +181,7 @@
 
 .hud-row{
   position:absolute;
-  top:32px;
+  top:40px;
   left:50%;
   transform:translateX(-50%);
   display:flex;
@@ -285,7 +285,7 @@
 
   .gps{
     position:absolute;
-    top:32px;
+    top:40px;
     left:50%;
     transform:translateX(-500%);
 
@@ -397,9 +397,9 @@
           position:absolute;
           top:calc(100% + 8px);
           left:calc(100% - 22px);
-          width:132px;
-          height:150px;
-          border-radius:18px;
+          width:88px;
+          height:100px;
+          border-radius:12px;
           overflow:hidden;
           opacity:0;
           transform:translateY(18px) scale(.94);
@@ -438,17 +438,6 @@
           height:100%;
           display:block;
           z-index:0;
-        }
-
-        .route-map-label{
-          position:absolute;
-          left:12px;
-          top:10px;
-          font-size:9px;
-          letter-spacing:.16em;
-          text-transform:uppercase;
-          color:rgba(214,233,255,.58);
-          z-index:2;
         }
 
     </style>
@@ -509,12 +498,12 @@
 
         .hud{
           border-radius:14px;
-          padding:8px 11px 7px;
+          padding:6px 11px 5px;
         }
 
         .hud-top{
           border-radius:12px;
-          padding:8px 10px 8px;
+          padding:5px 8px 5px;
         }
 
         .hud.both{
@@ -626,7 +615,7 @@
           left:100%;
           top:0;
           margin-left:4px;
-          padding:7px 8px 7px;
+          padding:4px 7px 5px;
         }
 
         .hud-row.compact-dual .hud-top .distance{
@@ -901,8 +890,7 @@
 </div>
 
 <div class="route-map" id="routeMap">
-    <div class="route-map-label">route sim</div>
-    <canvas id="routeMapCanvas" width="132" height="150"></canvas>
+    <canvas id="routeMapCanvas" width="88" height="100"></canvas>
 </div>
 
 </div>

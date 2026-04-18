@@ -294,38 +294,45 @@
 
     drawManeuver(ctx, path, kind, progress, time){
       const pulse = 0.5 + Math.sin(this.renderState.pulse * 3.2 + time * 1.4) * 0.5;
+      const accent = progress > 0.72 ? "#ffcf6a" : "#7ee7ff";
+      const anchor = this.getPointAt(path.points, Math.min(0.92, path.carT + 0.22));
+
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.globalAlpha = 0.7 + pulse * 0.25;
-      ctx.strokeStyle = progress > 0.72 ? "#ffcf6a" : "#7ee7ff";
-      ctx.fillStyle = ctx.strokeStyle;
-      ctx.lineWidth = 2.5;
+
+      ctx.globalAlpha = 0.18 + pulse * 0.16;
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(anchor.x, anchor.y, 10 + pulse * 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(anchor.x, anchor.y, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.2;
 
       if(kind === "left" || kind === "right"){
         const dir = kind === "left" ? -1 : 1;
-        const baseX = path.centerX + dir * path.offset * 0.7;
-        const baseY = path.turnY - 8;
         ctx.beginPath();
-        ctx.moveTo(baseX - dir * 7, baseY + 2);
-        ctx.lineTo(baseX, baseY - 6);
-        ctx.lineTo(baseX + dir * 7, baseY + 2);
+        ctx.moveTo(anchor.x, anchor.y);
+        ctx.lineTo(anchor.x + dir * 10, anchor.y);
         ctx.stroke();
       }else if(kind === "round"){
         ctx.beginPath();
-        ctx.arc(path.centerX, path.turnY, 11.5, Math.PI * 0.2, Math.PI * 1.75);
+        ctx.arc(anchor.x, anchor.y, 7, Math.PI * 0.15, Math.PI * 1.8);
         ctx.stroke();
       }else{
         ctx.beginPath();
-        ctx.moveTo(path.centerX, path.turnY - 10);
-        ctx.lineTo(path.centerX, path.turnY - 24);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(path.centerX - 5, path.turnY - 18);
-        ctx.lineTo(path.centerX, path.turnY - 24);
-        ctx.lineTo(path.centerX + 5, path.turnY - 18);
+        ctx.moveTo(anchor.x, anchor.y + 8);
+        ctx.lineTo(anchor.x, anchor.y - 8);
         ctx.stroke();
       }
+
       ctx.restore();
     }
 
