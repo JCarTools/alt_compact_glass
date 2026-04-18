@@ -237,7 +237,7 @@ if ("ARAD" == data.hudSenderType){
     }
 
 
-    test();
+    //test();
 
 
 
