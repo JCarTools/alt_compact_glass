@@ -396,7 +396,7 @@
         .route-map{
           position:absolute;
           top:calc(100% + 4px);
-          left:calc(100% - 22px);
+          left:calc(100% + 6px);
           width:76px;
           height:88px;
           border-radius:10px;
@@ -591,8 +591,17 @@
         .hud .limit{
           width:30px;
           height:30px;
-          font-size:11px;
-          letter-spacing:-0.04em;
+          font-size:13px;
+          line-height:1;
+          letter-spacing:-0.08em;
+        }
+
+        .hud .limit .limit-value{
+          display:block;
+          width:100%;
+          text-align:center;
+          transform:scaleX(1.18);
+          transform-origin:center;
         }
 
         .hud-top .limit{
@@ -855,7 +864,7 @@
             <div id="distanceTop" class="distance">—</div>
         </div>
 
-        <div id="limitTop" class="limit">0</div>
+        <div class="limit"><span id="limitTop" class="limit-value">0</span></div>
 
     </div>
 
@@ -879,7 +888,7 @@
             <div id="road" class="road"></div>
         </div>
 
-        <div id="limit" class="limit">0</div>
+        <div class="limit"><span id="limit" class="limit-value">0</span></div>
 <!--
         <svg id="radar" class="radar hidden">
             <use href="#ico_radar"></use>
