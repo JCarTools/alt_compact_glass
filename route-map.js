@@ -1,0 +1,359 @@
+(()=>{
+  const TURN_LEFT_TYPES = new Set([2, 4, 6, 8]);
+  const TURN_RIGHT_TYPES = new Set([3, 5, 7, 19]);
+  const TURN_STRAIGHT_TYPES = new Set([9, 15, 49]);
+  const TURN_ROUND_TYPES = new Set([24, 55]);
+
+  class PseudoRouteMap {
+    constructor(root, canvas){
+      this.root = root;
+      this.canvas = canvas;
+      this.ctx = canvas ? canvas.getContext("2d") : null;
+      this.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      this.state = {
+        visible:false,
+        turnType:9,
+        turnDist:1000,
+        remainDist:1000,
+        speed:0,
+        heading:0
+      };
+      this.renderState = {
+        progress:0,
+        speed:0,
+        heading:0,
+        pulse:0
+      };
+      this.lastFrame = performance.now();
+      this.resize();
+      this.loop = this.loop.bind(this);
+      requestAnimationFrame(this.loop);
+    }
+
+    resize(){
+      if(!this.canvas || !this.ctx) return;
+      const width = this.canvas.clientWidth || this.canvas.width;
+      const height = this.canvas.clientHeight || this.canvas.height;
+      this.canvas.width = Math.round(width * this.dpr);
+      this.canvas.height = Math.round(height * this.dpr);
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this.width = width;
+      this.height = height;
+    }
+
+    setVisible(visible){
+      this.state.visible = !!visible;
+      if(this.root){
+        this.root.classList.toggle("visible", this.state.visible);
+      }
+    }
+
+    update(data){
+      this.state.turnType = Number(data.turnType) || 9;
+      this.state.turnDist = Math.max(0, Number(data.turnDist) || 0);
+      this.state.remainDist = Math.max(this.state.turnDist, Number(data.remainDist) || this.state.turnDist || 0);
+      this.state.speed = this.resolveSpeed(data);
+      if(data.heading !== undefined){
+        this.state.heading = Number(data.heading) || 0;
+      }
+    }
+
+    updateGps(data){
+      if(data.speed !== undefined){
+        const speed = Number(data.speed);
+        if(Number.isFinite(speed)){
+          this.state.speed = Math.max(0, speed);
+        }
+      }
+      if(data.heading !== undefined){
+        const heading = Number(data.heading);
+        if(Number.isFinite(heading)){
+          this.state.heading = heading;
+        }
+      }
+    }
+
+    resolveSpeed(data){
+      const raw = Number(
+        data.currentSpeed ??
+        data.gpsSpeed ??
+        data.speed ??
+        data.vehicleSpeed ??
+        data.navSpeed ??
+        0
+      );
+      return Number.isFinite(raw) ? Math.max(0, raw) : 0;
+    }
+
+    getTurnKind(turnType){
+      if(TURN_LEFT_TYPES.has(turnType)) return "left";
+      if(TURN_RIGHT_TYPES.has(turnType)) return "right";
+      if(TURN_ROUND_TYPES.has(turnType)) return "round";
+      if(TURN_STRAIGHT_TYPES.has(turnType)) return "straight";
+      return "straight";
+    }
+
+    getTargetProgress(){
+      const dist = Math.max(0, this.state.turnDist);
+      if(dist >= 10000) return 0.08;
+      if(dist >= 5000) return 0.18;
+      if(dist >= 1000) return 0.34;
+      if(dist >= 300) return 0.52;
+      if(dist >= 100) return 0.68;
+      if(dist >= 50) return 0.79;
+      if(dist >= 10) return 0.9;
+      if(dist >= 1) return 0.97;
+      return 1;
+    }
+
+    lerp(from, to, factor){
+      return from + (to - from) * factor;
+    }
+
+    loop(now){
+      const dt = Math.min(0.06, (now - this.lastFrame) / 1000 || 0.016);
+      this.lastFrame = now;
+      this.tick(dt, now / 1000);
+      requestAnimationFrame(this.loop);
+    }
+
+    tick(dt, time){
+      if(!this.ctx || !this.width || !this.height) return;
+
+      const targetProgress = this.state.visible ? this.getTargetProgress() : 0;
+      const speedBoost = Math.min(1.8, 0.75 + (this.state.speed / 120));
+      this.renderState.progress = this.lerp(this.renderState.progress, targetProgress, dt * 2.6 * speedBoost);
+      this.renderState.speed = this.lerp(this.renderState.speed, this.state.speed, dt * 3);
+      this.renderState.pulse += dt * (1.2 + this.renderState.speed / 90);
+
+      this.draw(time);
+    }
+
+    draw(time){
+      const ctx = this.ctx;
+      const width = this.width;
+      const height = this.height;
+      const kind = this.getTurnKind(this.state.turnType);
+      const progress = this.renderState.progress;
+      const path = this.buildPath(kind, progress, width, height);
+      const carPoint = this.getPointAt(path.points, path.carT);
+      const lookPoint = this.getPointAt(path.points, Math.min(1, path.carT + 0.02));
+      const heading = Math.atan2(lookPoint.y - carPoint.y, lookPoint.x - carPoint.x);
+      const gpsHeading = (this.state.heading * Math.PI) / 180;
+      const blendedHeading = this.lerp(heading, gpsHeading, Math.min(0.35, this.renderState.speed / 200));
+
+      ctx.clearRect(0, 0, width, height);
+
+      this.drawBackground(ctx, width, height, time);
+      this.drawRouteGlow(ctx, path.points, "#174a67", 16, 0.18);
+      this.drawRouteGlow(ctx, path.points, "#5cc8ff", 8, 0.18);
+      this.drawPath(ctx, path.points, "rgba(184,226,255,.2)", 10);
+      this.drawPath(ctx, path.points, "#d9f4ff", 5.5);
+      this.drawGuides(ctx, path, kind);
+      this.drawManeuver(ctx, path, kind, progress, time);
+      this.drawCar(ctx, carPoint, blendedHeading, time);
+    }
+
+    drawBackground(ctx, width, height, time){
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, "rgba(12,20,34,.95)");
+      gradient.addColorStop(1, "rgba(4,9,17,.88)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.strokeStyle = "rgba(126,231,255,.16)";
+      ctx.lineWidth = 1;
+      for(let x = 16; x < width; x += 18){
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for(let y = 18; y < height; y += 18){
+        ctx.beginPath();
+        ctx.moveTo(0, y + Math.sin(time + y * 0.02) * 1.5);
+        ctx.lineTo(width, y + Math.sin(time + y * 0.02) * 1.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    buildPath(kind, progress, width, height){
+      const cx = width * 0.5;
+      const bottom = height - 18;
+      const top = 28;
+      const turnY = 38 + (height - 76) * (1 - progress);
+      const safeTurnY = Math.max(top + 10, Math.min(bottom - 34, turnY));
+      const offset = Math.min(36, width * 0.28);
+      const points = [];
+
+      const addLine = (x1, y1, x2, y2, segments = 12) => {
+        for(let i = 0; i <= segments; i++){
+          const t = i / segments;
+          points.push({
+            x: this.lerp(x1, x2, t),
+            y: this.lerp(y1, y2, t)
+          });
+        }
+      };
+
+      const addQuadratic = (x1, y1, cx1, cy1, x2, y2, segments = 18) => {
+        for(let i = 0; i <= segments; i++){
+          const t = i / segments;
+          const mt = 1 - t;
+          points.push({
+            x: mt * mt * x1 + 2 * mt * t * cx1 + t * t * x2,
+            y: mt * mt * y1 + 2 * mt * t * cy1 + t * t * y2
+          });
+        }
+      };
+
+      if(kind === "left"){
+        addLine(cx, bottom, cx, safeTurnY + 12, 14);
+        addQuadratic(cx, safeTurnY + 12, cx, safeTurnY - 4, cx - offset, safeTurnY - 4, 18);
+        addLine(cx - offset, safeTurnY - 4, cx - offset, top, 10);
+      }else if(kind === "right"){
+        addLine(cx, bottom, cx, safeTurnY + 12, 14);
+        addQuadratic(cx, safeTurnY + 12, cx, safeTurnY - 4, cx + offset, safeTurnY - 4, 18);
+        addLine(cx + offset, safeTurnY - 4, cx + offset, top, 10);
+      }else if(kind === "round"){
+        const radius = 18;
+        addLine(cx, bottom, cx, safeTurnY + radius + 18, 10);
+        for(let i = 0; i <= 28; i++){
+          const angle = Math.PI * 0.45 + (Math.PI * 1.5 * (i / 28));
+          points.push({
+            x: cx + Math.cos(angle) * radius,
+            y: safeTurnY + Math.sin(angle) * radius
+          });
+        }
+        addLine(cx + radius, safeTurnY, cx + radius, top, 8);
+      }else{
+        addLine(cx, bottom, cx, top, 28);
+      }
+
+      return {
+        points,
+        turnY:safeTurnY,
+        centerX:cx,
+        carT:Math.max(0.06, Math.min(0.98, progress * 0.9 + 0.04)),
+        offset
+      };
+    }
+
+    getPointAt(points, t){
+      if(!points.length) return {x:0, y:0};
+      if(points.length === 1) return points[0];
+      const scaled = Math.max(0, Math.min(0.999, t)) * (points.length - 1);
+      const index = Math.floor(scaled);
+      const localT = scaled - index;
+      const p1 = points[index];
+      const p2 = points[Math.min(points.length - 1, index + 1)];
+      return {
+        x: this.lerp(p1.x, p2.x, localT),
+        y: this.lerp(p1.y, p2.y, localT)
+      };
+    }
+
+    drawPath(ctx, points, color, width){
+      if(points.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for(let i = 1; i < points.length; i++){
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawRouteGlow(ctx, points, color, width, alpha){
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      this.drawPath(ctx, points, color, width);
+      ctx.restore();
+    }
+
+    drawGuides(ctx, path, kind){
+      if(kind === "straight") return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(126,231,255,.16)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(path.centerX, this.height - 14);
+      ctx.lineTo(path.centerX, path.turnY - 10);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawManeuver(ctx, path, kind, progress, time){
+      const pulse = 0.5 + Math.sin(this.renderState.pulse * 3.2 + time * 1.4) * 0.5;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalAlpha = 0.7 + pulse * 0.25;
+      ctx.strokeStyle = progress > 0.72 ? "#ffcf6a" : "#7ee7ff";
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = 2.5;
+
+      if(kind === "left" || kind === "right"){
+        const dir = kind === "left" ? -1 : 1;
+        const baseX = path.centerX + dir * path.offset * 0.7;
+        const baseY = path.turnY - 8;
+        ctx.beginPath();
+        ctx.moveTo(baseX - dir * 7, baseY + 2);
+        ctx.lineTo(baseX, baseY - 6);
+        ctx.lineTo(baseX + dir * 7, baseY + 2);
+        ctx.stroke();
+      }else if(kind === "round"){
+        ctx.beginPath();
+        ctx.arc(path.centerX, path.turnY, 11.5, Math.PI * 0.2, Math.PI * 1.75);
+        ctx.stroke();
+      }else{
+        ctx.beginPath();
+        ctx.moveTo(path.centerX, path.turnY - 10);
+        ctx.lineTo(path.centerX, path.turnY - 24);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(path.centerX - 5, path.turnY - 18);
+        ctx.lineTo(path.centerX, path.turnY - 24);
+        ctx.lineTo(path.centerX + 5, path.turnY - 18);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    drawCar(ctx, point, heading, time){
+      const bob = Math.sin(time * 4.6) * 0.7;
+      ctx.save();
+      ctx.translate(point.x, point.y + bob);
+      ctx.rotate(heading + Math.PI / 2);
+
+      ctx.shadowColor = "rgba(126,231,255,.45)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "#8ff1ff";
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(6, 7);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(-6, 7);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#effcff";
+      ctx.beginPath();
+      ctx.arc(0, -2.5, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  window.PseudoRouteMap = PseudoRouteMap;
+})();
