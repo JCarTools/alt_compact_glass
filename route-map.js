@@ -95,14 +95,17 @@
 
     getTargetProgress(){
       const dist = Math.max(0, this.state.turnDist);
-      if(dist >= 10000) return 0.08;
-      if(dist >= 5000) return 0.18;
-      if(dist >= 1000) return 0.34;
-      if(dist >= 300) return 0.52;
-      if(dist >= 100) return 0.68;
-      if(dist >= 50) return 0.79;
-      if(dist >= 10) return 0.9;
-      if(dist >= 1) return 0.97;
+      if(dist >= 10000) return 0.04;
+      if(dist >= 5000) return 0.08;
+      if(dist >= 2000) return 0.14;
+      if(dist >= 1000) return 0.22;
+      if(dist >= 500) return 0.34;
+      if(dist >= 200) return 0.48;
+      if(dist >= 100) return 0.62;
+      if(dist >= 50) return 0.76;
+      if(dist >= 20) return 0.86;
+      if(dist >= 10) return 0.92;
+      if(dist >= 3) return 0.97;
       return 1;
     }
 
@@ -137,7 +140,7 @@
       const progress = this.renderState.progress;
       const path = this.buildPath(kind, progress, width, height);
       const carPoint = this.getPointAt(path.points, path.carT);
-      const lookPoint = this.getPointAt(path.points, Math.min(1, path.carT + 0.02));
+      const lookPoint = this.getPointAt(path.points, Math.min(1, path.carT + 0.035));
       const heading = Math.atan2(lookPoint.y - carPoint.y, lookPoint.x - carPoint.x);
       const gpsHeading = (this.state.heading * Math.PI) / 180;
       const blendedHeading = this.lerp(heading, gpsHeading, Math.min(0.35, this.renderState.speed / 200));
@@ -149,6 +152,7 @@
       this.drawRouteGlow(ctx, path.points, "#5cc8ff", 8, 0.18);
       this.drawPath(ctx, path.points, "rgba(184,226,255,.2)", 10);
       this.drawPath(ctx, path.points, "#d9f4ff", 5.5);
+      this.drawApproachTrail(ctx, path.points, path.carT);
       this.drawGuides(ctx, path, kind);
       this.drawManeuver(ctx, path, kind, progress, time);
       this.drawCar(ctx, carPoint, blendedHeading, time);
@@ -182,12 +186,13 @@
 
     buildPath(kind, progress, width, height){
       const cx = width * 0.5;
-      const bottom = height - 18;
-      const top = 28;
-      const turnY = 38 + (height - 76) * (1 - progress);
-      const safeTurnY = Math.max(top + 10, Math.min(bottom - 34, turnY));
-      const offset = Math.min(36, width * 0.28);
+      const bottom = height - 12;
+      const top = 12;
+      const fixedTurnY = Math.max(top + 16, Math.min(height * 0.42, height - 44));
+      const offset = Math.min(24, width * 0.22);
       const points = [];
+      const turnProgress = Math.max(0, (progress - 0.82) / 0.18);
+      const carT = this.getCarT(progress, kind, turnProgress);
 
       const addLine = (x1, y1, x2, y2, segments = 12) => {
         for(let i = 0; i <= segments; i++){
@@ -211,35 +216,47 @@
       };
 
       if(kind === "left"){
-        addLine(cx, bottom, cx, safeTurnY + 12, 14);
-        addQuadratic(cx, safeTurnY + 12, cx, safeTurnY - 4, cx - offset, safeTurnY - 4, 18);
-        addLine(cx - offset, safeTurnY - 4, cx - offset, top, 10);
+        addLine(cx, bottom, cx, fixedTurnY + 12, 18);
+        addQuadratic(cx, fixedTurnY + 12, cx, fixedTurnY - 2, cx - offset, fixedTurnY - 2, 22);
+        addLine(cx - offset, fixedTurnY - 2, cx - offset, top, 12);
       }else if(kind === "right"){
-        addLine(cx, bottom, cx, safeTurnY + 12, 14);
-        addQuadratic(cx, safeTurnY + 12, cx, safeTurnY - 4, cx + offset, safeTurnY - 4, 18);
-        addLine(cx + offset, safeTurnY - 4, cx + offset, top, 10);
+        addLine(cx, bottom, cx, fixedTurnY + 12, 18);
+        addQuadratic(cx, fixedTurnY + 12, cx, fixedTurnY - 2, cx + offset, fixedTurnY - 2, 22);
+        addLine(cx + offset, fixedTurnY - 2, cx + offset, top, 12);
       }else if(kind === "round"){
-        const radius = 18;
-        addLine(cx, bottom, cx, safeTurnY + radius + 18, 10);
-        for(let i = 0; i <= 28; i++){
-          const angle = Math.PI * 0.45 + (Math.PI * 1.5 * (i / 28));
+        const radius = Math.min(14, width * 0.17);
+        addLine(cx, bottom, cx, fixedTurnY + radius + 14, 16);
+        for(let i = 0; i <= 34; i++){
+          const angle = Math.PI * 0.52 + (Math.PI * 1.44 * (i / 34));
           points.push({
             x: cx + Math.cos(angle) * radius,
-            y: safeTurnY + Math.sin(angle) * radius
+            y: fixedTurnY + Math.sin(angle) * radius
           });
         }
-        addLine(cx + radius, safeTurnY, cx + radius, top, 8);
+        addLine(cx + radius, fixedTurnY, cx + radius, top, 10);
       }else{
-        addLine(cx, bottom, cx, top, 28);
+        addLine(cx, bottom, cx, top, 34);
       }
 
       return {
         points,
-        turnY:safeTurnY,
+        turnY:fixedTurnY,
         centerX:cx,
-        carT:Math.max(0.06, Math.min(0.98, progress * 0.9 + 0.04)),
+        carT,
+        turnProgress,
         offset
       };
+    }
+
+    getCarT(progress, kind, turnProgress){
+      const approachT = 0.12 + Math.min(progress, 0.82) / 0.82 * 0.52;
+      if(kind === "straight"){
+        return Math.min(0.96, 0.12 + progress * 0.8);
+      }
+      if(progress <= 0.82){
+        return approachT;
+      }
+      return Math.min(0.96, 0.64 + turnProgress * 0.28);
     }
 
     getPointAt(points, t){
@@ -279,15 +296,32 @@
       ctx.restore();
     }
 
+    drawApproachTrail(ctx, points, carT){
+      if(points.length < 2) return;
+      const endIndex = Math.max(2, Math.floor((points.length - 1) * Math.max(0.02, carT - 0.02)));
+      ctx.save();
+      ctx.strokeStyle = "rgba(143,241,255,.78)";
+      ctx.lineWidth = 2.8;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for(let i = 1; i <= endIndex; i++){
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
     drawGuides(ctx, path, kind){
       if(kind === "straight") return;
       ctx.save();
       ctx.strokeStyle = "rgba(126,231,255,.16)";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 6]);
       ctx.beginPath();
-      ctx.moveTo(path.centerX, this.height - 14);
-      ctx.lineTo(path.centerX, path.turnY - 10);
+      ctx.moveTo(path.centerX, this.height - 10);
+      ctx.lineTo(path.centerX, path.turnY - 8);
       ctx.stroke();
       ctx.restore();
     }
@@ -295,7 +329,8 @@
     drawManeuver(ctx, path, kind, progress, time){
       const pulse = 0.5 + Math.sin(this.renderState.pulse * 3.2 + time * 1.4) * 0.5;
       const accent = progress > 0.72 ? "#ffcf6a" : "#7ee7ff";
-      const anchor = this.getPointAt(path.points, Math.min(0.92, path.carT + 0.22));
+      const anchorT = kind === "straight" ? 0.82 : 0.66;
+      const anchor = this.getPointAt(path.points, anchorT);
 
       ctx.save();
       ctx.lineCap = "round";
@@ -314,22 +349,22 @@
       ctx.fill();
 
       ctx.strokeStyle = accent;
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 1.8;
 
       if(kind === "left" || kind === "right"){
         const dir = kind === "left" ? -1 : 1;
         ctx.beginPath();
-        ctx.moveTo(anchor.x, anchor.y);
-        ctx.lineTo(anchor.x + dir * 10, anchor.y);
+        ctx.moveTo(anchor.x - dir * 4, anchor.y);
+        ctx.lineTo(anchor.x + dir * 6, anchor.y);
         ctx.stroke();
       }else if(kind === "round"){
         ctx.beginPath();
-        ctx.arc(anchor.x, anchor.y, 7, Math.PI * 0.15, Math.PI * 1.8);
+        ctx.arc(anchor.x, anchor.y, 6, Math.PI * 0.15, Math.PI * 1.8);
         ctx.stroke();
       }else{
         ctx.beginPath();
-        ctx.moveTo(anchor.x, anchor.y + 8);
-        ctx.lineTo(anchor.x, anchor.y - 8);
+        ctx.moveTo(anchor.x, anchor.y + 6);
+        ctx.lineTo(anchor.x, anchor.y - 6);
         ctx.stroke();
       }
 
