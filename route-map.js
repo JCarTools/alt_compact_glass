@@ -148,10 +148,9 @@
       ctx.clearRect(0, 0, width, height);
 
       this.drawBackground(ctx, width, height, time);
-      this.drawRouteGlow(ctx, path.points, "#174a67", 16, 0.18);
-      this.drawRouteGlow(ctx, path.points, "#5cc8ff", 8, 0.18);
-      this.drawPath(ctx, path.points, "rgba(184,226,255,.2)", 10);
-      this.drawPath(ctx, path.points, "#d9f4ff", 5.5);
+      this.drawRouteGlow(ctx, path.points, "#0e2f42", 10, 0.14);
+      this.drawPath(ctx, path.points, "rgba(255,255,255,.12)", 9);
+      this.drawPath(ctx, path.points, "#f4fbff", 4.2);
       this.drawApproachTrail(ctx, path.points, path.carT);
       this.drawGuides(ctx, path, kind);
       this.drawManeuver(ctx, path, kind, progress, time);
@@ -160,27 +159,44 @@
 
     drawBackground(ctx, width, height, time){
       const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, "rgba(12,20,34,.95)");
-      gradient.addColorStop(1, "rgba(4,9,17,.88)");
+      gradient.addColorStop(0, "rgba(14,22,32,.96)");
+      gradient.addColorStop(1, "rgba(7,13,21,.92)");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, width, height);
 
       ctx.save();
-      ctx.globalAlpha = 0.18;
-      ctx.strokeStyle = "rgba(126,231,255,.16)";
+      ctx.globalAlpha = 0.12;
+      ctx.strokeStyle = "rgba(152,179,201,.18)";
       ctx.lineWidth = 1;
-      for(let x = 16; x < width; x += 18){
+      for(let x = 10; x < width; x += 14){
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
       }
-      for(let y = 18; y < height; y += 18){
+      for(let y = 12; y < height; y += 14){
         ctx.beginPath();
-        ctx.moveTo(0, y + Math.sin(time + y * 0.02) * 1.5);
-        ctx.lineTo(width, y + Math.sin(time + y * 0.02) * 1.5);
+        ctx.moveTo(0, y + Math.sin(time * 0.6 + y * 0.015) * 0.8);
+        ctx.lineTo(width, y + Math.sin(time * 0.6 + y * 0.015) * 0.8);
         ctx.stroke();
       }
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(92,116,138,.22)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.12, height * 0.24);
+      ctx.lineTo(width * 0.84, height * 0.12);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(width * 0.08, height * 0.62);
+      ctx.lineTo(width * 0.9, height * 0.52);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(width * 0.18, height * 0.9);
+      ctx.lineTo(width * 0.82, height * 0.78);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -300,8 +316,8 @@
       if(points.length < 2) return;
       const endIndex = Math.max(2, Math.floor((points.length - 1) * Math.max(0.02, carT - 0.02)));
       ctx.save();
-      ctx.strokeStyle = "rgba(143,241,255,.78)";
-      ctx.lineWidth = 2.8;
+      ctx.strokeStyle = "#4ec7ff";
+      ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -316,8 +332,8 @@
     drawGuides(ctx, path, kind){
       if(kind === "straight") return;
       ctx.save();
-      ctx.strokeStyle = "rgba(126,231,255,.16)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,.16)";
+      ctx.lineWidth = 1;
       ctx.setLineDash([4, 6]);
       ctx.beginPath();
       ctx.moveTo(path.centerX, this.height - 10);
@@ -328,7 +344,7 @@
 
     drawManeuver(ctx, path, kind, progress, time){
       const pulse = 0.5 + Math.sin(this.renderState.pulse * 3.2 + time * 1.4) * 0.5;
-      const accent = progress > 0.72 ? "#ffcf6a" : "#7ee7ff";
+      const accent = progress > 0.72 ? "#ffd166" : "#6fd3ff";
       const anchorT = kind === "straight" ? 0.82 : 0.66;
       const anchor = this.getPointAt(path.points, anchorT);
 
@@ -336,20 +352,20 @@
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      ctx.globalAlpha = 0.18 + pulse * 0.16;
+      ctx.globalAlpha = 0.14 + pulse * 0.12;
       ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.arc(anchor.x, anchor.y, 10 + pulse * 3, 0, Math.PI * 2);
+      ctx.arc(anchor.x, anchor.y, 8 + pulse * 2, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.arc(anchor.x, anchor.y, 3.4, 0, Math.PI * 2);
+      ctx.arc(anchor.x, anchor.y, 2.6, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.strokeStyle = accent;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.5;
 
       if(kind === "left" || kind === "right"){
         const dir = kind === "left" ? -1 : 1;
@@ -372,26 +388,26 @@
     }
 
     drawCar(ctx, point, heading, time){
-      const bob = Math.sin(time * 4.6) * 0.7;
+      const bob = Math.sin(time * 4.4) * 0.45;
       ctx.save();
       ctx.translate(point.x, point.y + bob);
       ctx.rotate(heading + Math.PI / 2);
 
-      ctx.shadowColor = "rgba(126,231,255,.45)";
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = "#8ff1ff";
+      ctx.shadowColor = "rgba(78,199,255,.34)";
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = "#33b5ff";
       ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(6, 7);
-      ctx.lineTo(0, 4);
-      ctx.lineTo(-6, 7);
+      ctx.moveTo(0, -7);
+      ctx.lineTo(5.2, 6);
+      ctx.lineTo(0, 3.2);
+      ctx.lineTo(-5.2, 6);
       ctx.closePath();
       ctx.fill();
 
       ctx.shadowBlur = 0;
-      ctx.fillStyle = "#effcff";
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(0, -2.5, 1.6, 0, Math.PI * 2);
+      ctx.arc(0, -2.2, 1.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
