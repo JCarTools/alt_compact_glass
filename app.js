@@ -91,6 +91,10 @@
 
 const hudTop = document.getElementById('hudPanelTop');
 const hudRow = document.querySelector('.hud-row');
+const routeMapRoot = document.getElementById("routeMap");
+const routeMapCanvas = document.getElementById("routeMapCanvas");
+const routeMap = new PseudoRouteMap(routeMapRoot, routeMapCanvas);
+window.addEventListener("resize", ()=> routeMap.resize());
 //const turnUseTop = document.getElementById("turnUseTop");
 const distanceTop = document.getElementById("distanceTop");
 const limitTop = document.getElementById("limitTop");
@@ -123,6 +127,7 @@ function layout(){
     hudRow.classList.toggle("compact-dual", dualHud)
     hudRow.classList.toggle("solo-radar", state.radar && !state.navi)
     hudRow.classList.toggle("solo-navi", state.navi && !state.radar)
+    routeMap.setVisible(state.navi)
 }
 
 function test(){
@@ -134,6 +139,11 @@ function test(){
 }
 
 window.onAndroidEvent = function(type,data){
+
+      if(type == "gps"){
+        routeMap.updateGps(data || {})
+        return
+      }
 
       if(type == "GPSSignalQuality"){
         setGpsLevel(data.updateSignalQuality)
@@ -176,6 +186,7 @@ if ("ARAD" == data.hudSenderType){
         layout()
       if(data.naviOn){
         turnUse.setAttribute("href", map[data.turnType] || "#ico_straight");
+        routeMap.update(data);
 
               const tdis = data.turnDist;
               const rdis = data.remainDist;
@@ -215,12 +226,18 @@ if ("ARAD" == data.hudSenderType){
       else{
         panel.classList.remove("urgent")
         road.innerText = ""
+        routeMap.update({
+          turnType:9,
+          turnDist:0,
+          remainDist:0,
+          currentSpeed:0
+        })
       }
     }
     }
 
 
-    //test();
+    test();
 
 
 

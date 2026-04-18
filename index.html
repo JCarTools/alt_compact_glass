@@ -388,10 +388,68 @@
     transform:scale(.6);
 }
 
-.gps.low .gps-low{
-    opacity:1;
-    transform:scale(1);
-}
+        .gps.low .gps-low{
+            opacity:1;
+            transform:scale(1);
+        }
+
+        .route-map{
+          position:absolute;
+          top:calc(100% + 8px);
+          left:calc(100% - 22px);
+          width:132px;
+          height:150px;
+          border-radius:18px;
+          overflow:hidden;
+          opacity:0;
+          transform:translateY(18px) scale(.94);
+          transform-origin:bottom right;
+          transition:
+            opacity .28s ease,
+            transform .42s cubic-bezier(.19,1,.22,1),
+            filter .28s ease;
+          filter:blur(4px);
+          pointer-events:none;
+          z-index:1;
+        }
+
+        .route-map.visible{
+          opacity:1;
+          transform:translateY(0) scale(1);
+          filter:blur(0);
+        }
+
+        .route-map::before{
+          content:"";
+          position:absolute;
+          inset:1px;
+          border-radius:inherit;
+          pointer-events:none;
+          background:
+            radial-gradient(circle at 50% 110%, rgba(126,231,255,.18), transparent 54%),
+            linear-gradient(180deg, rgba(255,255,255,.08), transparent 28%);
+          z-index:1;
+        }
+
+        .route-map canvas{
+          position:absolute;
+          inset:0;
+          width:100%;
+          height:100%;
+          display:block;
+          z-index:0;
+        }
+
+        .route-map-label{
+          position:absolute;
+          left:12px;
+          top:10px;
+          font-size:9px;
+          letter-spacing:.16em;
+          text-transform:uppercase;
+          color:rgba(214,233,255,.58);
+          z-index:2;
+        }
 
     </style>
     <style>
@@ -413,7 +471,8 @@
 
         .hud,
         .hud-top,
-        .gps{
+        .gps,
+        .route-map{
           border:1px solid var(--glass-edge);
           background:var(--glass-fill);
           backdrop-filter: blur(24px) saturate(140%);
@@ -581,6 +640,13 @@
           padding:5px;
           border-radius:10px;
           transform:translateX(-540%);
+        }
+
+        .route-map{
+          box-shadow:
+            var(--shadow-deep),
+            inset 0 1px 0 var(--glass-highlight),
+            inset 0 -1px 0 rgba(126,231,255,.08);
         }
 
         .gps-bars span{
@@ -834,8 +900,14 @@
 
 </div>
 
+<div class="route-map" id="routeMap">
+    <div class="route-map-label">route sim</div>
+    <canvas id="routeMapCanvas" width="132" height="150"></canvas>
 </div>
 
+</div>
+
+<script src="route-map.js"></script>
 <script src="app.js"></script>
 <!--
 <script>
