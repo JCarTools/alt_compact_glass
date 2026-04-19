@@ -294,7 +294,7 @@
       const turnProgress = Math.max(0, Math.min(1, (progress - 0.78) / 0.14));
       const exitProgress = Math.max(0, Math.min(1, Math.max(this.renderState.exitProgress, (progress - 0.92) / 0.08)));
       const turnY = this.getTurnY(approachProgress, height);
-      const postTurnLength = Math.max(24, height * 0.34);
+      const postTurnLength = Math.max(38, height * 0.52);
 
       const addLine = (x1, y1, x2, y2, segments = 12) => {
         for(let i = 0; i <= segments; i++){
@@ -322,22 +322,24 @@
       }else if(kind === "left"){
         const bendX = cx - offset * (0.28 + turnProgress * 0.72);
         const exitX = bendX - offset * (0.18 + exitProgress * 1.05);
-        const exitY = turnY - postTurnLength * exitProgress;
+        const exitY = this.lerp(turnY - 2, top - 12, exitProgress);
         addLine(cx, carY, cx, turnY + 14, 22);
         addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 28);
         addLine(bendX, turnY - 2, exitX, exitY, 18);
+        addLine(exitX, exitY, exitX, top - 18, 12);
       }else if(kind === "right"){
         const bendX = cx + offset * (0.28 + turnProgress * 0.72);
         const exitX = bendX + offset * (0.18 + exitProgress * 1.05);
-        const exitY = turnY - postTurnLength * exitProgress;
+        const exitY = this.lerp(turnY - 2, top - 12, exitProgress);
         addLine(cx, carY, cx, turnY + 14, 22);
         addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 28);
         addLine(bendX, turnY - 2, exitX, exitY, 18);
+        addLine(exitX, exitY, exitX, top - 18, 12);
       }else if(kind === "round"){
         const radius = Math.min(14, width * 0.17);
         const sweep = 0.3 + turnProgress * 1.12;
         const exitX = cx + radius + radius * 1.3 * exitProgress;
-        const exitY = turnY - postTurnLength * exitProgress;
+        const exitY = this.lerp(turnY, top - 12, exitProgress);
         addLine(cx, carY, cx, turnY + radius + 12, 18);
         for(let i = 0; i <= 34; i++){
           const angle = Math.PI * 0.56 + (Math.PI * sweep * (i / 34));
@@ -347,6 +349,7 @@
           });
         }
         addLine(cx + radius, turnY, exitX, exitY, 14);
+        addLine(exitX, exitY, exitX, top - 18, 10);
       }else{
         addLine(cx, carY, cx, top, 34);
       }
