@@ -182,8 +182,8 @@
     getHoldProgress(route){
       if(!route) return 0.22;
       if(route.kind === "straight") return 0.72;
-      if(route.kind === "round") return 0.22;
-      return 0.24;
+      if(route.kind === "round") return 0.44;
+      return 0.48;
     }
 
     lerp(from, to, factor){
@@ -243,7 +243,7 @@
       const ctx = this.ctx;
       const car = {x:this.width * 0.5, y:this.height - 15};
       const model = this.buildWorldModel();
-      const desiredHeading = this.getCameraHeading(model.points);
+      const desiredHeading = this.getCameraHeading(model);
       const headingDelta = this.normalizeAngle(desiredHeading - this.render.heading);
       this.render.heading += headingDelta * this.clamp(dt * 4.8, 0.06, 0.26);
       const projected = this.projectWorld(model, car, this.render.heading);
@@ -263,16 +263,22 @@
       const points = [];
       const segmentMeta = {
         maneuverIndex:0,
-        nextIndex:0
+        nextIndex:0,
+        turnStartIndex:0,
+        turnEndIndex:0,
+        exitHeading:0
       };
 
       points.push({x:0, y:180});
 
       this.extendStraight(points, 0, 180, 18);
       segmentMeta.maneuverIndex = points.length - 1;
+      segmentMeta.turnStartIndex = points.length - 1;
 
       this.appendCurrentManeuver(points, this.currentRoute);
+      segmentMeta.turnEndIndex = points.length - 1;
       const exitHeading = this.getPathHeading(points, points.length - 4, points.length - 1);
+      segmentMeta.exitHeading = exitHeading;
 
       this.extendStraight(points, exitHeading, 96, 10);
       segmentMeta.nextIndex = points.length - 1;
@@ -286,7 +292,10 @@
       return {
         points,
         maneuverIndex:segmentMeta.maneuverIndex,
-        nextIndex:segmentMeta.nextIndex
+        nextIndex:segmentMeta.nextIndex,
+        turnStartIndex:segmentMeta.turnStartIndex,
+        turnEndIndex:segmentMeta.turnEndIndex,
+        exitHeading:segmentMeta.exitHeading
       };
     }
 
@@ -418,11 +427,23 @@
       };
     }
 
-    getCameraHeading(path){
+    getCameraHeading(model){
       const progress = this.clamp(this.render.pathProgress, 0, 0.999);
-      const carPos = this.getPointAt(path, progress);
-      const ahead = this.getPointAt(path, this.clamp(progress + 0.03, 0, 0.999));
-      return Math.atan2(ahead.x - carPos.x, carPos.y - ahead.y);
+      const path = model.points;
+      const turnStart = model.turnStartIndex / Math.max(1, path.length - 1);
+      const turnEnd = model.turnEndIndex / Math.max(1, path.length - 1);
+
+      if(progress <= turnStart){
+        return 0;
+      }
+
+      if(progress >= turnEnd){
+        return model.exitHeading || 0;
+      }
+
+      const t = this.clamp((progress - turnStart) / Math.max(0.001, turnEnd - turnStart), 0, 1);
+      const eased = t * t * (3 - 2 * t);
+      return this.lerp(0, model.exitHeading || 0, eased);
     }
 
     projectPoint(point, carPos, rotation, anchor){
