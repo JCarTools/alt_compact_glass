@@ -10,8 +10,6 @@
     commit: 0.78,
     carry: 0.56
   };
-  const HOLD_BEFORE_SWITCH = 0.78;
-
   class PseudoRouteMap {
     constructor(root, canvas){
       this.root = root;
@@ -181,6 +179,13 @@
       return 1.02;
     }
 
+    getHoldProgress(route){
+      if(!route) return 0.22;
+      if(route.kind === "straight") return 0.72;
+      if(route.kind === "round") return 0.22;
+      return 0.24;
+    }
+
     lerp(from, to, factor){
       return from + (to - from) * factor;
     }
@@ -208,15 +213,16 @@
 
       const speedBoost = this.clamp(0.88 + this.state.speed / 65, 0.88, 1.8);
       const target = this.state.visible ? this.getTargetProgress(this.currentRoute.turnDist) : 0.12;
+      const holdProgress = this.getHoldProgress(this.currentRoute);
       this.render.targetProgress = this.nextRoute
         ? Math.max(target, 1.04)
-        : Math.min(target, HOLD_BEFORE_SWITCH);
+        : Math.min(target, holdProgress);
 
       const delta = this.render.targetProgress - this.render.pathProgress;
       let follow = CAMERA_SPEED.cruise;
       if(this.nextRoute){
         follow = this.render.pathProgress < 0.82 ? CAMERA_SPEED.commit : CAMERA_SPEED.carry;
-      }else if(target > 0.78){
+      }else if(target > holdProgress - 0.04){
         follow = CAMERA_SPEED.approach;
       }
 
