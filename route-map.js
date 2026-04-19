@@ -94,25 +94,55 @@
         turnType,
         kind:this.getTurnKind(turnType),
         turnDist,
-        remainDist
+        remainDist,
+        angle:this.getTurnAngle(turnType),
+        direction:this.getDirection(turnType)
       };
     }
 
     isSameTurn(currentRoute, nextRoute){
       if(!currentRoute) return false;
       if(currentRoute.turnType !== nextRoute.turnType) return false;
-      if(nextRoute.turnDist > currentRoute.turnDist + 150 && currentRoute.turnDist < 70){
+      if(nextRoute.turnDist > currentRoute.turnDist + 150 && currentRoute.turnDist < 60){
         return false;
       }
       return true;
     }
 
     getTurnKind(turnType){
-      if(TURN_LEFT_TYPES.has(turnType)) return "left";
-      if(TURN_RIGHT_TYPES.has(turnType)) return "right";
       if(TURN_ROUND_TYPES.has(turnType)) return "round";
       if(TURN_STRAIGHT_TYPES.has(turnType)) return "straight";
+      if(TURN_LEFT_TYPES.has(turnType) || TURN_RIGHT_TYPES.has(turnType)) return "turn";
       return "straight";
+    }
+
+    getDirection(turnType){
+      if(TURN_LEFT_TYPES.has(turnType)) return -1;
+      if(TURN_RIGHT_TYPES.has(turnType)) return 1;
+      return 0;
+    }
+
+    getTurnAngle(turnType){
+      switch(turnType){
+        case 4:
+        case 5:
+          return Math.PI / 6;
+        case 2:
+        case 3:
+          return Math.PI / 3.2;
+        case 6:
+        case 7:
+          return Math.PI / 2.15;
+        case 8:
+        case 19:
+          return Math.PI * 0.92;
+        case 24:
+          return Math.PI * 1.15;
+        case 55:
+          return Math.PI * 0.9;
+        default:
+          return 0;
+      }
     }
 
     getProgressTarget(turnDist){
@@ -149,6 +179,7 @@
       const targetProgress = this.state.visible ? this.getProgressTarget(this.activeRoute.turnDist) : 0;
       const desiredProgress = this.pendingRoute ? 1 : targetProgress;
       const progressRate = this.pendingRoute ? 0.72 : 1.65 * speedBoost;
+
       this.render.progress = this.lerp(this.render.progress, desiredProgress, dt * progressRate);
 
       const currentDone = this.render.progress > 0.992;
@@ -158,9 +189,9 @@
         this.render.exitProgress = 0;
       }
 
-      const targetAngle = this.getCameraAngle(this.activeRoute.kind, this.render.progress, this.render.exitProgress);
-      this.render.cameraAngle = this.lerp(this.render.cameraAngle, targetAngle, dt * 3.6);
-      this.render.pulse += dt * 1.15;
+      const targetAngle = this.getCameraAngle(this.activeRoute, this.render.progress, this.render.exitProgress);
+      this.render.cameraAngle = this.lerp(this.render.cameraAngle, targetAngle, dt * 3.4);
+      this.render.pulse += dt * 1.1;
       this.render.transitionT = Math.min(1, this.render.transitionT + dt * 2.2);
 
       if(this.pendingRoute && this.render.exitProgress >= 1){
@@ -175,15 +206,13 @@
       this.draw(time);
     }
 
-    getCameraAngle(kind, progress, exitProgress){
-      if(kind === "straight") return 0;
-      const turnAmount = kind === "left" ? -0.24 : 0.24;
-      if(kind === "round"){
-        return this.lerp(0, 0.2, Math.max(0, (progress - 0.72) / 0.28));
-      }
-      const enter = Math.max(0, Math.min(1, (progress - 0.74) / 0.18));
-      const settle = Math.max(enter, exitProgress);
-      return turnAmount * settle;
+    getCameraAngle(route, progress, exitProgress){
+      if(!route || route.kind === "straight") return 0;
+      const direction = route.direction || 1;
+      const amount = route.kind === "round" ? route.angle * 0.38 : route.angle * 0.58;
+      const rotateT = Math.max(0, Math.min(1, (progress - 0.8) / 0.2));
+      const settleT = Math.max(rotateT, exitProgress);
+      return direction * amount * settleT;
     }
 
     draw(time){
@@ -191,9 +220,9 @@
       const width = this.width;
       const height = this.height;
       const carPoint = {x:width * 0.5, y:height - 14};
-      const worldPath = this.buildWorldPath(this.activeRoute.kind, width, height);
-      const transformed = this.projectPath(worldPath, carPoint, this.render.progress, this.render.exitProgress, this.render.cameraAngle);
-      const extended = this.extendToNext(transformed, width, height);
+      const worldPath = this.buildWorldPath(this.activeRoute, width, height);
+      const projected = this.projectPath(worldPath, carPoint, this.render.progress, this.render.exitProgress, this.render.cameraAngle, height);
+      const extended = this.extendToNext(projected.points, this.pendingRoute, width, height);
       const points = this.blendDisplayPath(extended);
       const carIndex = this.findClosestPointIndex(points, carPoint.x, carPoint.y);
 
@@ -202,52 +231,66 @@
       this.drawRouteGlow(ctx, points);
       this.drawRouteBase(ctx, points);
       this.drawDrivenTrail(ctx, points, carIndex);
-      this.drawManeuverMarker(ctx, transformed.turnPoint, this.activeRoute.kind, time);
+      this.drawManeuverMarker(ctx, projected.turnPoint, this.activeRoute, time);
       this.drawCar(ctx, carPoint, time);
     }
 
-    buildWorldPath(kind, width, height){
-      const straightIn = height * 0.95;
-      const straightOut = height * 0.9;
+    buildWorldPath(route, width, height){
       const lane = Math.min(22, width * 0.2);
+      const straightOut = height * 1.05;
       const points = [];
 
-      const addPoint = (x, y) => points.push({x, y});
+      const push = (x, y) => points.push({x, y});
 
-      if(kind === "left"){
-        addPoint(0, 22);
-        addPoint(0, -20);
-        addPoint(-6, -34);
-        addPoint(-lane * 0.55, -48);
-        addPoint(-lane, -60);
-        addPoint(-lane * 1.6, -straightOut);
-      }else if(kind === "right"){
-        addPoint(0, 22);
-        addPoint(0, -20);
-        addPoint(6, -34);
-        addPoint(lane * 0.55, -48);
-        addPoint(lane, -60);
-        addPoint(lane * 1.6, -straightOut);
-      }else if(kind === "round"){
-        const radius = Math.min(12, width * 0.14);
-        addPoint(0, 22);
-        addPoint(0, -20);
-        for(let i = 0; i <= 16; i++){
-          const angle = Math.PI * 0.62 + (Math.PI * 1.14 * (i / 16));
-          addPoint(Math.cos(angle) * radius, -40 + Math.sin(angle) * radius);
-        }
-        addPoint(radius * 1.7, -straightOut * 0.8);
-      }else{
-        addPoint(0, 22);
-        addPoint(0, -straightIn);
+      if(route.kind === "straight"){
+        push(0, 26);
+        push(0, -straightOut);
+        return {points, turnIndex:1};
       }
 
-      return points;
+      if(route.kind === "round"){
+        const radius = Math.min(14, width * 0.16);
+        push(0, 26);
+        push(0, -18);
+        for(let i = 0; i <= 22; i++){
+          const angle = Math.PI * 0.62 + route.direction * (route.angle * (i / 22));
+          push(Math.sin(angle) * radius, -40 - Math.cos(angle) * radius);
+        }
+        push(route.direction * radius * 2.2, -straightOut * 0.72);
+        return {points, turnIndex:2};
+      }
+
+      const radius = Math.max(10, Math.min(18, route.angle * 14));
+      push(0, 26);
+      push(0, -18);
+
+      const startAngle = route.direction === -1 ? 0 : Math.PI;
+      const endAngle = startAngle + route.direction * route.angle;
+      const centerX = route.direction * radius;
+      const centerY = -18;
+
+      for(let i = 0; i <= 18; i++){
+        const t = i / 18;
+        const angle = this.lerp(startAngle, endAngle, t);
+        push(
+          centerX + Math.cos(angle) * radius,
+          centerY + Math.sin(angle) * radius
+        );
+      }
+
+      const last = points[points.length - 1];
+      const heading = endAngle + route.direction * Math.PI / 2;
+      push(
+        last.x + Math.cos(heading) * straightOut,
+        last.y + Math.sin(heading) * straightOut
+      );
+
+      return {points, turnIndex:2};
     }
 
-    projectPath(worldPath, carPoint, progress, exitProgress, cameraAngle){
-      const shiftY = this.getForwardShift(progress, exitProgress, this.height);
-      const points = worldPath.map(point => {
+    projectPath(worldPath, carPoint, progress, exitProgress, cameraAngle, height){
+      const shiftY = this.getForwardShift(progress, exitProgress, height);
+      const points = worldPath.points.map(point => {
         const rotated = this.rotatePoint(point.x, point.y + shiftY, cameraAngle);
         return {
           x:carPoint.x + rotated.x,
@@ -255,22 +298,21 @@
         };
       });
 
-      const turnIndex = Math.min(points.length - 1, Math.max(1, Math.floor(points.length * 0.4)));
       return {
         points,
-        turnPoint:points[turnIndex]
+        turnPoint:points[Math.min(points.length - 1, Math.max(1, worldPath.turnIndex))]
       };
     }
 
     getForwardShift(progress, exitProgress, height){
-      const far = -height * 0.78;
-      const near = -18;
-      const approach = Math.min(1, progress / 0.88);
-      const approachShift = this.lerp(far, near, Math.pow(approach, 0.96));
+      const far = -height * 0.82;
+      const near = -24;
+      const approachT = Math.min(1, progress / 0.88);
+      const approachShift = this.lerp(far, near, Math.pow(approachT, 0.95));
       if(progress < 0.88){
         return approachShift;
       }
-      return this.lerp(near, height * 0.28, exitProgress);
+      return this.lerp(near, height * 0.26, exitProgress);
     }
 
     rotatePoint(x, y, angle){
@@ -282,19 +324,19 @@
       };
     }
 
-    extendToNext(basePoints, width, height){
-      const points = basePoints.points.map(point => ({...point}));
-      const last = points[points.length - 1];
-      if(!last) return points;
+    extendToNext(points, pendingRoute, width, height){
+      const result = points.map(point => ({...point}));
+      const last = result[result.length - 1];
+      if(!last) return result;
 
-      const futureKind = this.pendingRoute ? this.pendingRoute.kind : "straight";
-      const topY = -18;
-      const lane = Math.min(15, width * 0.14);
+      const future = pendingRoute ? pendingRoute : {kind:"straight", direction:0, angle:0};
+      const leadY = last.y - height * 0.14;
+      const lane = Math.min(14, width * 0.14);
 
       const addLine = (x1, y1, x2, y2, segments = 8) => {
         for(let i = 1; i <= segments; i++){
           const t = i / segments;
-          points.push({
+          result.push({
             x:this.lerp(x1, x2, t),
             y:this.lerp(y1, y2, t)
           });
@@ -305,38 +347,35 @@
         for(let i = 1; i <= segments; i++){
           const t = i / segments;
           const mt = 1 - t;
-          points.push({
+          result.push({
             x:mt * mt * x1 + 2 * mt * t * cx1 + t * t * x2,
             y:mt * mt * y1 + 2 * mt * t * cy1 + t * t * y2
           });
         }
       };
 
-      const leadX = last.x;
-      const leadY = last.y - height * 0.16;
-      addLine(last.x, last.y, leadX, leadY, 8);
+      addLine(last.x, last.y, last.x, leadY, 8);
 
-      if(futureKind === "left"){
-        addQuad(leadX, leadY, leadX, leadY - 5, leadX - lane, leadY - 5, 8);
-        addLine(leadX - lane, leadY - 5, leadX - lane * 1.8, topY, 8);
-      }else if(futureKind === "right"){
-        addQuad(leadX, leadY, leadX, leadY - 5, leadX + lane, leadY - 5, 8);
-        addLine(leadX + lane, leadY - 5, leadX + lane * 1.8, topY, 8);
-      }else if(futureKind === "round"){
+      if(future.kind === "turn"){
+        const dir = future.direction || 1;
+        addQuad(last.x, leadY, last.x, leadY - 5, last.x + dir * lane, leadY - 5, 8);
+        addLine(last.x + dir * lane, leadY - 5, last.x + dir * lane * 1.8, -18, 8);
+      }else if(future.kind === "round"){
+        const dir = future.direction || 1;
         const radius = Math.min(7, width * 0.08);
         for(let i = 1; i <= 10; i++){
-          const angle = Math.PI * 0.62 + (Math.PI * 1.04 * (i / 10));
-          points.push({
-            x:leadX + Math.cos(angle) * radius,
-            y:leadY + Math.sin(angle) * radius
+          const angle = Math.PI * 0.62 + dir * (future.angle * 0.55 * (i / 10));
+          result.push({
+            x:last.x + Math.sin(angle) * radius,
+            y:leadY - 18 - Math.cos(angle) * radius
           });
         }
-        addLine(leadX + radius, leadY, leadX + radius * 1.7, topY, 6);
+        addLine(last.x + dir * radius * 1.4, leadY - 18, last.x + dir * radius * 2, -18, 6);
       }else{
-        addLine(leadX, leadY, leadX, topY, 10);
+        addLine(last.x, leadY, last.x, -18, 10);
       }
 
-      return points;
+      return result;
     }
 
     blendDisplayPath(targetPoints){
@@ -390,9 +429,9 @@
       for(let i = 0; i < points.length; i++){
         const dx = points[i].x - x;
         const dy = points[i].y - y;
-        const distance = dx * dx + dy * dy;
-        if(distance < bestDistance){
-          bestDistance = distance;
+        const dist = dx * dx + dy * dy;
+        if(dist < bestDistance){
+          bestDistance = dist;
           bestIndex = i;
         }
       }
@@ -470,8 +509,8 @@
       ctx.restore();
     }
 
-    drawManeuverMarker(ctx, anchor, kind, time){
-      if(kind === "straight" || !anchor) return;
+    drawManeuverMarker(ctx, anchor, route, time){
+      if(!route || route.kind === "straight" || !anchor) return;
       const pulse = 0.5 + Math.sin(this.render.pulse * 1.7 + time * 0.6) * 0.5;
 
       ctx.save();
@@ -485,13 +524,13 @@
       ctx.strokeStyle = "#6fd3ff";
       ctx.lineWidth = 1.4;
 
-      if(kind === "left" || kind === "right"){
-        const dir = kind === "left" ? -1 : 1;
+      if(route.kind === "turn"){
+        const dir = route.direction || 1;
         ctx.beginPath();
         ctx.moveTo(anchor.x - dir * 3, anchor.y);
         ctx.lineTo(anchor.x + dir * 5, anchor.y);
         ctx.stroke();
-      }else if(kind === "round"){
+      }else if(route.kind === "round"){
         ctx.beginPath();
         ctx.arc(anchor.x, anchor.y, 5, Math.PI * 0.62, Math.PI * 1.8);
         ctx.stroke();
