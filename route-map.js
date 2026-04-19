@@ -192,9 +192,9 @@
       if(!route) return 0;
       if(route.kind === "straight") return 0;
       if(route.kind === "round"){
-        return (route.direction || 1) * Math.min(route.angle || 0, Math.PI * 0.9);
+        return this.normalizeAngle((route.direction || 1) * Math.min(route.angle || 0, Math.PI * 0.9));
       }
-      return (route.direction || 1) * (route.angle || 0);
+      return this.normalizeAngle((route.direction || 1) * (route.angle || 0));
     }
 
     lerp(from, to, factor){
@@ -245,6 +245,7 @@
         this.render.carryHeading = this.getRouteExitHeading(this.currentRoute);
         this.currentRoute = this.nextRoute;
         this.nextRoute = null;
+        this.render.heading = this.render.carryHeading;
         this.render.pathProgress = 0.12;
       }
 
