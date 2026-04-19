@@ -417,10 +417,19 @@
     }
 
     getTurnY(progress, height){
+      const carY = height - 14;
       const farY = -26;
-      const nearY = height * 0.42;
-      const eased = Math.pow(progress, 0.92);
-      return this.lerp(farY, nearY, eased);
+      const approachEndY = carY - 18;
+      const passThroughY = carY + 10;
+
+      if(progress < 0.84){
+        const approachT = Math.pow(progress / 0.84, 0.92);
+        return this.lerp(farY, approachEndY, approachT);
+      }
+
+      const passT = Math.min(1, (progress - 0.84) / 0.16);
+      const easedPassT = 1 - Math.pow(1 - passT, 2.4);
+      return this.lerp(approachEndY, passThroughY, easedPassT);
     }
 
     getPointAt(points, t){
@@ -520,7 +529,10 @@
       if(!path.showManeuver) return;
       const pulse = 0.5 + Math.sin(this.renderState.pulse * 3.2 + time * 1.4) * 0.5;
       const accent = progress > 0.72 ? "#ffd166" : "#6fd3ff";
-      const anchor = this.getPointAt(path.points, kind === "straight" ? 0.76 : 0.58);
+      const anchorT = progress > 0.86
+        ? (kind === "straight" ? 0.9 : 0.72)
+        : (kind === "straight" ? 0.76 : 0.58);
+      const anchor = this.getPointAt(path.points, anchorT);
 
       ctx.save();
       ctx.lineCap = "round";
