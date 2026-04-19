@@ -10,6 +10,7 @@
     commit: 0.78,
     carry: 0.56
   };
+  const HOLD_BEFORE_SWITCH = 0.78;
 
   class PseudoRouteMap {
     constructor(root, canvas){
@@ -209,7 +210,7 @@
       const target = this.state.visible ? this.getTargetProgress(this.currentRoute.turnDist) : 0.12;
       this.render.targetProgress = this.nextRoute
         ? Math.max(target, 1.04)
-        : target;
+        : Math.min(target, HOLD_BEFORE_SWITCH);
 
       const delta = this.render.targetProgress - this.render.pathProgress;
       let follow = CAMERA_SPEED.cruise;
@@ -270,14 +271,11 @@
       this.extendStraight(points, exitHeading, 96, 10);
       segmentMeta.nextIndex = points.length - 1;
 
-      if(this.nextRoute){
-        const previewDistance = this.getPreviewDistance(this.nextRoute.turnDist);
-        this.extendStraight(points, exitHeading, previewDistance, 10);
-        segmentMeta.nextIndex = points.length - 1;
-        this.appendPreviewManeuver(points, this.nextRoute, exitHeading);
-      }else{
-        this.extendStraight(points, exitHeading, 120, 12);
-      }
+      const previewDistance = this.nextRoute
+        ? Math.max(140, this.getPreviewDistance(this.nextRoute.turnDist) + 80)
+        : 120;
+      this.extendStraight(points, exitHeading, previewDistance, 12);
+      segmentMeta.nextIndex = points.length - 1;
 
       return {
         points,
@@ -311,20 +309,6 @@
       this.appendAngularTurn(points, route.direction || 1, route.angle, 42, 118);
     }
 
-    appendPreviewManeuver(points, route, heading){
-      if(!route || route.kind === "straight"){
-        this.extendStraight(points, heading, 60, 6);
-        return;
-      }
-
-      if(route.kind === "round"){
-        this.appendRoundaboutPreview(points, route.direction || 1, heading, route.angle, 10, 12, 52);
-        return;
-      }
-
-      this.appendAngularPreview(points, route.direction || 1, heading, route.angle, 18, 58);
-    }
-
     appendAngularTurn(points, direction, angle, cornerLead, exitLength){
       const start = points[points.length - 1];
       const splitA = {
@@ -344,27 +328,6 @@
       this.pushLinear(points, splitA, 5);
       this.pushLinear(points, splitB, 4);
       this.pushLinear(points, end, 12);
-    }
-
-    appendAngularPreview(points, direction, baseHeading, angle, cornerLead, exitLength){
-      const start = points[points.length - 1];
-      const splitA = {
-        x:start.x + Math.sin(baseHeading) * cornerLead,
-        y:start.y - Math.cos(baseHeading) * cornerLead
-      };
-      const nextHeading = baseHeading + direction * angle;
-      const splitB = {
-        x:splitA.x + Math.sin(nextHeading) * (cornerLead * 0.72),
-        y:splitA.y - Math.cos(nextHeading) * (cornerLead * 0.72)
-      };
-      const end = {
-        x:splitB.x + Math.sin(nextHeading) * exitLength,
-        y:splitB.y - Math.cos(nextHeading) * exitLength
-      };
-
-      this.pushLinear(points, splitA, 3);
-      this.pushLinear(points, splitB, 3);
-      this.pushLinear(points, end, 8);
     }
 
     appendRoundabout(points, direction, angle, radius, arcSteps, exitLength){
@@ -398,39 +361,6 @@
         y:end.y - Math.cos(endHeading) * exitLength
       };
       this.pushLinear(points, leave, 12);
-    }
-
-    appendRoundaboutPreview(points, direction, baseHeading, angle, radius, arcSteps, exitLength){
-      const start = points[points.length - 1];
-      const approach = {
-        x:start.x + Math.sin(baseHeading) * 18,
-        y:start.y - Math.cos(baseHeading) * 18
-      };
-      const centerNormal = baseHeading + direction * Math.PI / 2;
-      const center = {
-        x:approach.x + Math.sin(centerNormal) * radius,
-        y:approach.y - Math.cos(centerNormal) * radius
-      };
-      const startAngle = Math.atan2(approach.y - center.y, approach.x - center.x);
-
-      this.pushLinear(points, approach, 3);
-      for(let i = 1; i <= arcSteps; i++){
-        const t = i / arcSteps;
-        const a = startAngle + direction * angle * t;
-        points.push({
-          x:center.x + Math.cos(a) * radius,
-          y:center.y + Math.sin(a) * radius
-        });
-      }
-
-      const endAngle = startAngle + direction * angle;
-      const tangent = direction === 1 ? endAngle + Math.PI / 2 : endAngle - Math.PI / 2;
-      const end = points[points.length - 1];
-      const leave = {
-        x:end.x + Math.sin(tangent) * exitLength,
-        y:end.y - Math.cos(tangent) * exitLength
-      };
-      this.pushLinear(points, leave, 8);
     }
 
     pushLinear(points, endPoint, steps){
