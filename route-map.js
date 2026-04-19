@@ -24,11 +24,12 @@
         progress:0,
         exitProgress:0,
         pulse:0,
+        cameraAngle:0,
         transitionT:1
       };
-      this.transitionFromPoints = null;
-      this.displayPoints = null;
 
+      this.previousPath = null;
+      this.displayPath = null;
       this.lastFrame = performance.now();
       this.resize();
       this.loop = this.loop.bind(this);
@@ -57,10 +58,9 @@
       const turnType = Number(data.turnType) || 9;
       const turnDist = Math.max(0, Number(data.turnDist) || 0);
       const remainDist = Math.max(turnDist, Number(data.remainDist) || turnDist || 0);
-      const signature = `${turnType}:${remainDist > 0 ? 1 : 0}`;
 
       if(!this.activeRoute){
-        this.activeRoute = this.createRoute(turnType, turnDist, remainDist, signature);
+        this.activeRoute = this.createRoute(turnType, turnDist, remainDist);
         return;
       }
 
@@ -70,7 +70,7 @@
         return;
       }
 
-      this.pendingRoute = this.createRoute(turnType, turnDist, remainDist, signature);
+      this.pendingRoute = this.createRoute(turnType, turnDist, remainDist);
     }
 
     updateGps(data){
@@ -80,7 +80,6 @@
           this.state.speed = Math.max(0, speed);
         }
       }
-
       if(data.heading !== undefined){
         const heading = Number(data.heading);
         if(Number.isFinite(heading)){
@@ -89,22 +88,19 @@
       }
     }
 
-    createRoute(turnType, turnDist, remainDist, signature){
+    createRoute(turnType, turnDist, remainDist){
       return {
         turnType,
         turnDist,
         remainDist,
-        signature
+        kind:this.getTurnKind(turnType)
       };
     }
 
-    isSameTurn(route, nextType, nextDist){
+    isSameTurn(route, turnType, turnDist){
       if(!route) return false;
-      if(route.turnType !== nextType) return false;
-      const routeKind = this.getTurnKind(route.turnType);
-      const nextKind = this.getTurnKind(nextType);
-      if(routeKind !== nextKind) return false;
-      if(nextDist > route.turnDist + 120 && route.turnDist < 70){
+      if(route.turnType !== turnType) return false;
+      if(turnDist > route.turnDist + 150 && route.turnDist < 60){
         return false;
       }
       return true;
@@ -120,18 +116,17 @@
 
     getTargetProgress(dist){
       const value = Math.max(0, Number(dist) || 0);
-      if(value >= 10000) return 0.03;
-      if(value >= 5000) return 0.06;
-      if(value >= 2000) return 0.12;
-      if(value >= 1000) return 0.18;
-      if(value >= 500) return 0.28;
-      if(value >= 300) return 0.38;
-      if(value >= 150) return 0.5;
-      if(value >= 80) return 0.62;
-      if(value >= 40) return 0.74;
-      if(value >= 20) return 0.84;
-      if(value >= 8) return 0.92;
-      if(value >= 2) return 0.98;
+      if(value >= 10000) return 0.02;
+      if(value >= 5000) return 0.05;
+      if(value >= 2000) return 0.1;
+      if(value >= 1000) return 0.16;
+      if(value >= 500) return 0.26;
+      if(value >= 250) return 0.38;
+      if(value >= 120) return 0.5;
+      if(value >= 60) return 0.64;
+      if(value >= 30) return 0.76;
+      if(value >= 10) return 0.88;
+      if(value >= 3) return 0.96;
       return 1;
     }
 
@@ -149,67 +144,85 @@
     tick(dt, time){
       if(!this.ctx || !this.width || !this.height || !this.activeRoute) return;
 
-      const speedBoost = Math.min(1.7, 0.8 + this.state.speed / 100);
+      const speedBoost = Math.min(1.7, 0.85 + this.state.speed / 110);
       const targetProgress = this.state.visible ? this.getTargetProgress(this.activeRoute.turnDist) : 0;
       const desiredProgress = this.pendingRoute ? 1 : targetProgress;
-      const followRate = this.pendingRoute ? 0.7 : 1.9 * speedBoost;
+      const progressRate = this.pendingRoute ? 0.75 : 1.8 * speedBoost;
 
-      this.renderState.progress = this.lerp(this.renderState.progress, desiredProgress, dt * followRate);
-      this.renderState.pulse += dt * 1.4;
+      this.renderState.progress = this.lerp(this.renderState.progress, desiredProgress, dt * progressRate);
+      this.renderState.pulse += dt * 1.3;
 
-      const passedCurrent = this.renderState.progress > 0.992;
-      if(passedCurrent){
-        this.renderState.exitProgress = Math.min(1, this.renderState.exitProgress + dt * 0.72);
+      const currentDone = this.renderState.progress > 0.992;
+      if(currentDone){
+        this.renderState.exitProgress = Math.min(1, this.renderState.exitProgress + dt * 0.62);
       }else{
         this.renderState.exitProgress = 0;
       }
 
+      const targetCameraAngle = this.getCameraAngle(this.activeRoute.kind, this.renderState.progress, this.renderState.exitProgress);
+      this.renderState.cameraAngle = this.lerp(this.renderState.cameraAngle, targetCameraAngle, dt * 4.2);
+
       if(this.pendingRoute && this.renderState.exitProgress >= 1){
-        this.transitionFromPoints = this.displayPoints ? this.displayPoints.map(point => ({...point})) : null;
+        this.previousPath = this.displayPath ? this.displayPath.map(point => ({...point})) : null;
         this.renderState.transitionT = 0;
         this.activeRoute = this.pendingRoute;
         this.pendingRoute = null;
-        this.renderState.progress = 0.04;
+        this.renderState.progress = 0.02;
         this.renderState.exitProgress = 0;
       }
 
+      this.renderState.transitionT = Math.min(1, this.renderState.transitionT + dt * 2.2);
       this.draw(time);
+    }
+
+    getCameraAngle(kind, progress, exitProgress){
+      if(kind === "straight") return 0;
+      const sign = kind === "left" ? -1 : 1;
+      if(kind === "round"){
+        return sign * (0.12 + exitProgress * 0.2);
+      }
+      const enter = Math.max(0, Math.min(1, (progress - 0.72) / 0.18));
+      const exit = Math.max(enter, exitProgress);
+      return sign * exit * 0.22;
     }
 
     draw(time){
       const ctx = this.ctx;
       const width = this.width;
       const height = this.height;
-      const kind = this.getTurnKind(this.activeRoute.turnType);
-      const path = this.buildPath(kind, this.renderState.progress, this.renderState.exitProgress, width, height);
-      this.renderState.transitionT = Math.min(1, this.renderState.transitionT + 0.06);
-      const points = this.getDisplayPoints(path.points);
-      const carIndex = this.findClosestPointIndex(points, path.carPoint.x, path.carPoint.y);
-      const displayPath = {
-        ...path,
-        points,
-        carIndex
-      };
+      const path = this.buildStablePath(this.activeRoute.kind, width, height);
+      const pathWithFuture = this.appendFuturePath(path, width, height);
+      const displayPoints = this.getDisplayPath(pathWithFuture);
+      const carPoint = {x:width * 0.5, y:height - 14};
+      const carIndex = this.findClosestPointIndex(displayPoints, carPoint.x, carPoint.y);
 
       ctx.clearRect(0, 0, width, height);
       this.drawBackground(ctx, width, height);
-      this.drawRouteGlow(ctx, points);
-      this.drawRouteBase(ctx, points);
-      this.drawDrivenTrail(ctx, points, carIndex);
-      this.drawManeuverMarker(ctx, displayPath, kind, time);
-      this.drawCar(ctx, path.carPoint, time);
+
+      ctx.save();
+      ctx.translate(carPoint.x, carPoint.y);
+      ctx.rotate(this.renderState.cameraAngle);
+      ctx.translate(-carPoint.x, -carPoint.y);
+
+      this.drawRouteGlow(ctx, displayPoints);
+      this.drawRouteBase(ctx, displayPoints);
+      this.drawDrivenTrail(ctx, displayPoints, carIndex);
+      this.drawManeuverMarker(ctx, path, time);
+      ctx.restore();
+
+      this.drawCar(ctx, carPoint, time);
     }
 
-    buildPath(kind, progress, exitProgress, width, height){
+    buildStablePath(kind, width, height){
       const cx = width * 0.5;
       const carY = height - 14;
-      const roadShift = this.getRoadShift(progress, exitProgress, height);
-      const turnWorldY = carY - 20;
-      const turnY = turnWorldY + roadShift;
-      const laneOffset = Math.min(20, width * 0.18);
       const points = [];
+      const shiftY = this.getApproachShift(height);
+      const turnY = carY - 18 + shiftY;
+      const laneOffset = Math.min(20, width * 0.18);
+      const futureLength = Math.max(34, height * 0.44);
 
-      const addLine = (x1, y1, x2, y2, segments = 12) => {
+      const addLine = (x1, y1, x2, y2, segments = 14) => {
         for(let i = 0; i <= segments; i++){
           const t = i / segments;
           points.push({
@@ -219,7 +232,7 @@
         }
       };
 
-      const addQuadratic = (x1, y1, cx1, cy1, x2, y2, segments = 18) => {
+      const addQuadratic = (x1, y1, cx1, cy1, x2, y2, segments = 20) => {
         for(let i = 0; i <= segments; i++){
           const t = i / segments;
           const mt = 1 - t;
@@ -232,99 +245,97 @@
 
       if(kind === "left"){
         const bendX = cx - laneOffset;
-        const exitX = cx - laneOffset * 2.2;
-        const exitY = turnY - height * 0.52;
-        addLine(cx, carY + 10, cx, turnY + 14, 20);
-        addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 20);
+        const exitX = cx - laneOffset * 2.4;
+        const exitY = turnY - futureLength;
+        addLine(cx, carY + 14, cx, turnY + 14, 18);
+        addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 18);
         addLine(bendX, turnY - 2, exitX, exitY, 18);
-        this.appendFutureRoad(points, exitX, exitY, -1, width, height);
       }else if(kind === "right"){
         const bendX = cx + laneOffset;
-        const exitX = cx + laneOffset * 2.2;
-        const exitY = turnY - height * 0.52;
-        addLine(cx, carY + 10, cx, turnY + 14, 20);
-        addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 20);
+        const exitX = cx + laneOffset * 2.4;
+        const exitY = turnY - futureLength;
+        addLine(cx, carY + 14, cx, turnY + 14, 18);
+        addQuadratic(cx, turnY + 14, cx, turnY + 2, bendX, turnY - 2, 18);
         addLine(bendX, turnY - 2, exitX, exitY, 18);
-        this.appendFutureRoad(points, exitX, exitY, 1, width, height);
       }else if(kind === "round"){
         const radius = Math.min(12, width * 0.14);
-        const exitX = cx + radius * 1.9;
-        const exitY = turnY - height * 0.46;
-        addLine(cx, carY + 10, cx, turnY + radius + 12, 18);
-        for(let i = 0; i <= 28; i++){
-          const angle = Math.PI * 0.62 + (Math.PI * 1.22 * (i / 28));
+        const exitX = cx + radius * 2;
+        const exitY = turnY - futureLength * 0.85;
+        addLine(cx, carY + 14, cx, turnY + radius + 12, 16);
+        for(let i = 0; i <= 26; i++){
+          const angle = Math.PI * 0.62 + (Math.PI * 1.18 * (i / 26));
           points.push({
             x:cx + Math.cos(angle) * radius,
             y:turnY + Math.sin(angle) * radius
           });
         }
         addLine(cx + radius, turnY, exitX, exitY, 14);
-        this.appendFutureRoad(points, exitX, exitY, 1, width, height);
       }else{
-        addLine(cx, carY + 10, cx, -18, 34);
+        addLine(cx, carY + 14, cx, -24, 30);
       }
 
       return {
         points,
-        carPoint:{x:cx, y:carY},
-        turnY,
-        showManeuver:progress > 0.08
+        kind,
+        turnAnchor:this.getPointAt(points, kind === "straight" ? 0.72 : 0.58)
       };
     }
 
-    getRoadShift(progress, exitProgress, height){
-      const farShift = -height * 0.76;
-      const approach = Math.min(1, progress / 0.86);
-      const approachShift = this.lerp(farShift, 0, Math.pow(approach, 0.96));
-      if(progress < 0.86){
-        return approachShift;
+    getApproachShift(height){
+      const farShift = -height * 0.78;
+      const approachT = Math.min(1, this.renderState.progress / 0.88);
+      const enterShift = this.lerp(farShift, 0, Math.pow(approachT, 0.94));
+      if(this.renderState.progress < 0.88){
+        return enterShift;
       }
-      return this.lerp(0, height * 0.34, Math.max(exitProgress, (progress - 0.86) / 0.14));
+      return this.lerp(0, height * 0.34, this.renderState.exitProgress);
     }
 
-    appendFutureRoad(points, startX, startY, direction, width, height){
-      const pendingKind = this.pendingRoute ? this.getTurnKind(this.pendingRoute.turnType) : "straight";
+    appendFuturePath(path, width, height){
+      const result = path.points.map(point => ({...point}));
+      const last = result[result.length - 1];
+      if(!last) return result;
+
       const top = -18;
-      const futureOffset = Math.min(14, width * 0.13);
-      const carryX = startX + direction * futureOffset * 1.6;
-      const carryY = startY - height * 0.2;
+      const futureKind = this.pendingRoute ? this.pendingRoute.kind : "straight";
+      const carry = Math.min(14, width * 0.13);
 
       const addLine = (x1, y1, x2, y2, segments = 8) => {
         for(let i = 1; i <= segments; i++){
           const t = i / segments;
-          points.push({
+          result.push({
             x:this.lerp(x1, x2, t),
             y:this.lerp(y1, y2, t)
           });
         }
       };
 
-      const addQuadratic = (x1, y1, cx1, cy1, x2, y2, segments = 12) => {
+      const addQuadratic = (x1, y1, cx1, cy1, x2, y2, segments = 10) => {
         for(let i = 1; i <= segments; i++){
           const t = i / segments;
           const mt = 1 - t;
-          points.push({
+          result.push({
             x:mt * mt * x1 + 2 * mt * t * cx1 + t * t * x2,
             y:mt * mt * y1 + 2 * mt * t * cy1 + t * t * y2
           });
         }
       };
 
-      addLine(startX, startY, carryX, carryY, 10);
-      const leadX = carryX;
-      const leadY = carryY;
+      const leadX = last.x;
+      const leadY = last.y - height * 0.16;
+      addLine(last.x, last.y, leadX, leadY, 8);
 
-      if(pendingKind === "left"){
-        addQuadratic(leadX, leadY, leadX, leadY - 6, leadX - futureOffset, leadY - 6, 10);
-        addLine(leadX - futureOffset, leadY - 6, leadX - futureOffset * 1.7, top, 8);
-      }else if(pendingKind === "right"){
-        addQuadratic(leadX, leadY, leadX, leadY - 6, leadX + futureOffset, leadY - 6, 10);
-        addLine(leadX + futureOffset, leadY - 6, leadX + futureOffset * 1.7, top, 8);
-      }else if(pendingKind === "round"){
+      if(futureKind === "left"){
+        addQuadratic(leadX, leadY, leadX, leadY - 6, leadX - carry, leadY - 6, 10);
+        addLine(leadX - carry, leadY - 6, leadX - carry * 1.8, top, 8);
+      }else if(futureKind === "right"){
+        addQuadratic(leadX, leadY, leadX, leadY - 6, leadX + carry, leadY - 6, 10);
+        addLine(leadX + carry, leadY - 6, leadX + carry * 1.8, top, 8);
+      }else if(futureKind === "round"){
         const radius = Math.min(7, width * 0.08);
         for(let i = 1; i <= 12; i++){
-          const angle = Math.PI * 0.62 + (Math.PI * 1.08 * (i / 12));
-          points.push({
+          const angle = Math.PI * 0.62 + (Math.PI * 1.04 * (i / 12));
+          result.push({
             x:leadX + Math.cos(angle) * radius,
             y:leadY + Math.sin(angle) * radius
           });
@@ -333,26 +344,28 @@
       }else{
         addLine(leadX, leadY, leadX, top, 10);
       }
+
+      return result;
     }
 
-    getDisplayPoints(targetPoints){
+    getDisplayPath(targetPoints){
       const sampledTarget = this.samplePoints(targetPoints, 72);
-      if(!this.transitionFromPoints || this.renderState.transitionT >= 1){
-        this.displayPoints = sampledTarget;
-        this.transitionFromPoints = sampledTarget;
+      if(!this.previousPath || this.renderState.transitionT >= 1){
+        this.displayPath = sampledTarget;
+        this.previousPath = sampledTarget;
         return sampledTarget;
       }
 
-      const sampledFrom = this.samplePoints(this.transitionFromPoints, sampledTarget.length);
+      const sampledFrom = this.samplePoints(this.previousPath, sampledTarget.length);
       const eased = 1 - Math.pow(1 - this.renderState.transitionT, 3);
       const blended = sampledTarget.map((point, index) => ({
         x:this.lerp(sampledFrom[index].x, point.x, eased),
         y:this.lerp(sampledFrom[index].y, point.y, eased)
       }));
 
-      this.displayPoints = blended;
+      this.displayPath = blended;
       if(this.renderState.transitionT >= 0.999){
-        this.transitionFromPoints = sampledTarget;
+        this.previousPath = sampledTarget;
       }
       return blended;
     }
@@ -387,9 +400,9 @@
       for(let i = 0; i < points.length; i++){
         const dx = points[i].x - x;
         const dy = points[i].y - y;
-        const dist = dx * dx + dy * dy;
-        if(dist < bestDistance){
-          bestDistance = dist;
+        const distance = dx * dx + dy * dy;
+        if(distance < bestDistance){
+          bestDistance = distance;
           bestIndex = i;
         }
       }
@@ -467,31 +480,31 @@
       ctx.restore();
     }
 
-    drawManeuverMarker(ctx, path, kind, time){
-      if(!path.showManeuver || kind === "straight") return;
+    drawManeuverMarker(ctx, path, time){
+      if(path.kind === "straight") return;
       const pulse = 0.5 + Math.sin(this.renderState.pulse * 1.8 + time * 0.6) * 0.5;
-      const anchor = this.getPointAt(path.points, 0.62);
+      const anchor = path.turnAnchor;
 
       ctx.save();
-      ctx.globalAlpha = 0.16 + pulse * 0.08;
+      ctx.globalAlpha = 0.15 + pulse * 0.06;
       ctx.fillStyle = "#6fd3ff";
       ctx.beginPath();
-      ctx.arc(anchor.x, anchor.y, 7 + pulse * 1.5, 0, Math.PI * 2);
+      ctx.arc(anchor.x, anchor.y, 7 + pulse * 1.2, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.globalAlpha = 0.95;
       ctx.strokeStyle = "#6fd3ff";
       ctx.lineWidth = 1.4;
 
-      if(kind === "left" || kind === "right"){
-        const dir = kind === "left" ? -1 : 1;
+      if(path.kind === "left" || path.kind === "right"){
+        const dir = path.kind === "left" ? -1 : 1;
         ctx.beginPath();
         ctx.moveTo(anchor.x - dir * 3, anchor.y);
         ctx.lineTo(anchor.x + dir * 5, anchor.y);
         ctx.stroke();
-      }else if(kind === "round"){
+      }else if(path.kind === "round"){
         ctx.beginPath();
-        ctx.arc(anchor.x, anchor.y, 5, Math.PI * 0.6, Math.PI * 1.8);
+        ctx.arc(anchor.x, anchor.y, 5, Math.PI * 0.62, Math.PI * 1.8);
         ctx.stroke();
       }
       ctx.restore();
