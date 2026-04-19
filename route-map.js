@@ -164,14 +164,16 @@
 
       const speedBoost = Math.min(1.8, 0.75 + (this.state.speed / 120));
       const activeTargetProgress = this.state.visible ? this.getTargetProgress(this.activeRoute.turnDist) : 0;
-      this.renderState.progress = this.lerp(this.renderState.progress, activeTargetProgress, dt * 2.2 * speedBoost);
+      const desiredProgress = this.pendingRoute ? 1 : activeTargetProgress;
+      const progressRate = this.pendingRoute ? 0.85 : 2.2 * speedBoost;
+      this.renderState.progress = this.lerp(this.renderState.progress, desiredProgress, dt * progressRate);
       this.renderState.speed = this.lerp(this.renderState.speed, this.state.speed, dt * 3);
       this.renderState.pulse += dt * (1.2 + this.renderState.speed / 90);
       this.renderState.transitionT = Math.min(1, this.renderState.transitionT + dt * 2.4);
 
-      const currentTurnDone = this.activeRoute.turnDist <= 1 || this.renderState.progress > 0.995;
+      const currentTurnDone = this.renderState.progress > 0.992;
       if(currentTurnDone){
-        this.renderState.exitProgress = Math.min(1, this.renderState.exitProgress + dt * 0.72);
+        this.renderState.exitProgress = Math.min(1, this.renderState.exitProgress + dt * 0.78);
       }else{
         this.renderState.exitProgress = 0;
       }
