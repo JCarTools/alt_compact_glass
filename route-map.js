@@ -162,16 +162,21 @@
     getTargetProgress(turnDist){
       const d = Math.max(0, Number(turnDist) || 0);
       if(d >= 10000) return 0.08;
-      if(d >= 5000) return 0.11;
-      if(d >= 2000) return 0.16;
-      if(d >= 1000) return 0.21;
-      if(d >= 500) return 0.28;
-      if(d >= 250) return 0.38;
-      if(d >= 120) return 0.52;
-      if(d >= 60) return 0.67;
-      if(d >= 30) return 0.8;
-      if(d >= 12) return 0.9;
-      if(d >= 4) return 0.97;
+      if(d >= 5000) return 0.1;
+      if(d >= 2000) return 0.12;
+      if(d >= 1000) return 0.15;
+      if(d >= 500) return 0.19;
+      if(d >= 250) return 0.24;
+      if(d >= 120) return 0.29;
+      if(d >= 80) return 0.34;
+      if(d >= 50) return 0.39;
+      if(d >= 30) return 0.44;
+      if(d >= 20) return 0.48;
+      if(d >= 10) return 0.52;
+      if(d >= 5) return 0.58;
+      if(d >= 3) return 0.66;
+      if(d >= 2) return 0.76;
+      if(d >= 1) return 0.9;
       return 1.02;
     }
 
