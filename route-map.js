@@ -231,15 +231,21 @@
       if(!showManeuver){
         addLine(cx, carY, cx, top, 28);
       }else if(kind === "left"){
+        const exitX = Math.max(10, cx - offset * 1.8);
+        const exitY = Math.max(top, turnY - postTurnLength);
         addLine(cx, carY, cx, turnY + 14, 20);
         addQuadratic(cx, turnY + 14, cx, turnY - 2, cx - offset, turnY - 2, 24);
-        addLine(cx - offset, turnY - 2, cx - offset, Math.max(top, turnY - postTurnLength), 12);
+        addLine(cx - offset, turnY - 2, exitX, exitY, 14);
       }else if(kind === "right"){
+        const exitX = Math.min(width - 10, cx + offset * 1.8);
+        const exitY = Math.max(top, turnY - postTurnLength);
         addLine(cx, carY, cx, turnY + 14, 20);
         addQuadratic(cx, turnY + 14, cx, turnY - 2, cx + offset, turnY - 2, 24);
-        addLine(cx + offset, turnY - 2, cx + offset, Math.max(top, turnY - postTurnLength), 12);
+        addLine(cx + offset, turnY - 2, exitX, exitY, 14);
       }else if(kind === "round"){
         const radius = Math.min(14, width * 0.17);
+        const exitX = Math.min(width - 10, cx + radius * 2.1);
+        const exitY = Math.max(top, turnY - postTurnLength * 0.95);
         addLine(cx, carY, cx, turnY + radius + 12, 18);
         for(let i = 0; i <= 34; i++){
           const angle = Math.PI * 0.56 + (Math.PI * 1.42 * (i / 34));
@@ -248,7 +254,7 @@
             y: turnY + Math.sin(angle) * radius
           });
         }
-        addLine(cx + radius, turnY, cx + radius, Math.max(top, turnY - postTurnLength), 10);
+        addLine(cx + radius, turnY, exitX, exitY, 12);
       }else{
         addLine(cx, carY, cx, top, 34);
       }
