@@ -297,13 +297,13 @@
       const exitHeading = this.getPathHeading(points, points.length - 4, points.length - 1);
       segmentMeta.exitHeading = exitHeading;
 
-      this.extendStraight(points, exitHeading, 96, 10);
+      this.extendStraight(points, exitHeading, 180, 16);
       segmentMeta.nextIndex = points.length - 1;
 
       const previewDistance = this.nextRoute
-        ? Math.max(140, this.getPreviewDistance(this.nextRoute.turnDist) + 80)
-        : 120;
-      this.extendStraight(points, exitHeading, previewDistance, 12);
+        ? Math.max(220, this.getPreviewDistance(this.nextRoute.turnDist) + 140)
+        : 220;
+      this.extendStraight(points, exitHeading, previewDistance, 18);
       segmentMeta.nextIndex = points.length - 1;
 
       return {
