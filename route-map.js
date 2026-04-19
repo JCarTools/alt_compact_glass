@@ -31,7 +31,8 @@
         pathProgress:0.12,
         targetProgress:0.12,
         heading:0,
-        pulse:0
+        pulse:0,
+        carryHeading:0
       };
 
       this.lastFrame = performance.now();
@@ -69,6 +70,7 @@
         this.currentRoute = route;
         this.render.pathProgress = this.getTargetProgress(route.turnDist);
         this.render.targetProgress = this.render.pathProgress;
+        this.render.carryHeading = 0;
         return;
       }
 
@@ -186,6 +188,15 @@
       return 0.48;
     }
 
+    getRouteExitHeading(route){
+      if(!route) return 0;
+      if(route.kind === "straight") return 0;
+      if(route.kind === "round"){
+        return (route.direction || 1) * Math.min(route.angle || 0, Math.PI * 0.9);
+      }
+      return (route.direction || 1) * (route.angle || 0);
+    }
+
     lerp(from, to, factor){
       return from + (to - from) * factor;
     }
@@ -231,9 +242,10 @@
 
       if(this.nextRoute && this.render.pathProgress >= 1.015){
         this.previousRoute = this.currentRoute;
+        this.render.carryHeading = this.getRouteExitHeading(this.currentRoute);
         this.currentRoute = this.nextRoute;
         this.nextRoute = null;
-        this.render.pathProgress = Math.min(0.36, this.getTargetProgress(this.currentRoute.turnDist));
+        this.render.pathProgress = 0.12;
       }
 
       this.draw(time, dt);
@@ -266,16 +278,20 @@
         nextIndex:0,
         turnStartIndex:0,
         turnEndIndex:0,
+        entryHeading:0,
         exitHeading:0
       };
 
       points.push({x:0, y:180});
 
-      this.extendStraight(points, 0, 180, 18);
+      const entryHeading = this.render.carryHeading || 0;
+      segmentMeta.entryHeading = entryHeading;
+
+      this.extendStraight(points, entryHeading, 180, 18);
       segmentMeta.maneuverIndex = points.length - 1;
       segmentMeta.turnStartIndex = points.length - 1;
 
-      this.appendCurrentManeuver(points, this.currentRoute);
+      this.appendCurrentManeuver(points, this.currentRoute, entryHeading);
       segmentMeta.turnEndIndex = points.length - 1;
       const exitHeading = this.getPathHeading(points, points.length - 4, points.length - 1);
       segmentMeta.exitHeading = exitHeading;
@@ -295,6 +311,7 @@
         nextIndex:segmentMeta.nextIndex,
         turnStartIndex:segmentMeta.turnStartIndex,
         turnEndIndex:segmentMeta.turnEndIndex,
+        entryHeading:segmentMeta.entryHeading,
         exitHeading:segmentMeta.exitHeading
       };
     }
@@ -310,27 +327,27 @@
       }
     }
 
-    appendCurrentManeuver(points, route){
+    appendCurrentManeuver(points, route, entryHeading){
       if(!route || route.kind === "straight"){
-        this.extendStraight(points, 0, 156, 18);
+        this.extendStraight(points, entryHeading || 0, 156, 18);
         return;
       }
 
       if(route.kind === "round"){
-        this.appendRoundabout(points, route.direction || 1, route.angle, 15, 22, 120);
+        this.appendRoundabout(points, route.direction || 1, route.angle, 15, 22, 120, entryHeading || 0);
         return;
       }
 
-      this.appendAngularTurn(points, route.direction || 1, route.angle, 42, 118);
+      this.appendAngularTurn(points, route.direction || 1, route.angle, 42, 118, entryHeading || 0);
     }
 
-    appendAngularTurn(points, direction, angle, cornerLead, exitLength){
+    appendAngularTurn(points, direction, angle, cornerLead, exitLength, entryHeading){
       const start = points[points.length - 1];
       const splitA = {
-        x:start.x,
-        y:start.y - cornerLead
+        x:start.x + Math.sin(entryHeading) * cornerLead,
+        y:start.y - Math.cos(entryHeading) * cornerLead
       };
-      const turnHeading = direction * angle;
+      const turnHeading = entryHeading + direction * angle;
       const splitB = {
         x:splitA.x + Math.sin(turnHeading) * (cornerLead * 0.78),
         y:splitA.y - Math.cos(turnHeading) * (cornerLead * 0.78)
@@ -345,17 +362,17 @@
       this.pushLinear(points, end, 12);
     }
 
-    appendRoundabout(points, direction, angle, radius, arcSteps, exitLength){
+    appendRoundabout(points, direction, angle, radius, arcSteps, exitLength, entryHeading){
       const start = points[points.length - 1];
       const approach = {
-        x:start.x,
-        y:start.y - 34
+        x:start.x + Math.sin(entryHeading) * 34,
+        y:start.y - Math.cos(entryHeading) * 34
       };
       const center = {
-        x:approach.x + direction * radius,
-        y:approach.y
+        x:approach.x + Math.sin(entryHeading + direction * Math.PI / 2) * radius,
+        y:approach.y - Math.cos(entryHeading + direction * Math.PI / 2) * radius
       };
-      const startAngle = direction === 1 ? Math.PI : 0;
+      const startAngle = Math.atan2(approach.y - center.y, approach.x - center.x);
       const sweep = direction * angle;
 
       this.pushLinear(points, approach, 5);
@@ -432,9 +449,10 @@
       const path = model.points;
       const turnStart = model.turnStartIndex / Math.max(1, path.length - 1);
       const turnEnd = model.turnEndIndex / Math.max(1, path.length - 1);
+      const entryHeading = model.entryHeading || 0;
 
       if(progress <= turnStart){
-        return 0;
+        return entryHeading;
       }
 
       if(progress >= turnEnd){
@@ -443,7 +461,7 @@
 
       const t = this.clamp((progress - turnStart) / Math.max(0.001, turnEnd - turnStart), 0, 1);
       const eased = t * t * (3 - 2 * t);
-      return this.lerp(0, model.exitHeading || 0, eased);
+      return this.lerp(entryHeading, model.exitHeading || 0, eased);
     }
 
     projectPoint(point, carPos, rotation, anchor){
