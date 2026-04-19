@@ -22,8 +22,12 @@
         progress:0,
         speed:0,
         heading:0,
-        pulse:0
+        pulse:0,
+        transitionT:1
       };
+      this.transitionFromPoints = null;
+      this.displayPoints = null;
+      this.lastSignature = "";
       this.lastFrame = performance.now();
       this.resize();
       this.loop = this.loop.bind(this);
@@ -49,6 +53,16 @@
     }
 
     update(data){
+      const nextTurnType = Number(data.turnType) || 9;
+      const nextTurnDist = Math.max(0, Number(data.turnDist) || 0);
+      const nextSignature = `${nextTurnType}:${nextTurnDist > 120 ? "far" : "near"}`;
+
+      if(this.shouldStartTransition(nextTurnType, nextTurnDist, nextSignature)){
+        this.transitionFromPoints = this.displayPoints ? this.displayPoints.map(point => ({...point})) : null;
+        this.renderState.transitionT = 0;
+      }
+
+      this.lastSignature = nextSignature;
       this.state.turnType = Number(data.turnType) || 9;
       this.state.turnDist = Math.max(0, Number(data.turnDist) || 0);
       this.state.remainDist = Math.max(this.state.turnDist, Number(data.remainDist) || this.state.turnDist || 0);
@@ -56,6 +70,13 @@
       if(data.heading !== undefined){
         this.state.heading = Number(data.heading) || 0;
       }
+    }
+
+    shouldStartTransition(nextTurnType, nextTurnDist, nextSignature){
+      if(!this.displayPoints || !this.lastSignature) return false;
+      if(nextSignature !== this.lastSignature) return true;
+      if(nextTurnType !== this.state.turnType) return true;
+      return nextTurnDist > this.state.turnDist + 180 && this.state.turnDist < 80;
     }
 
     updateGps(data){
@@ -128,6 +149,7 @@
       this.renderState.progress = this.lerp(this.renderState.progress, targetProgress, dt * 2.6 * speedBoost);
       this.renderState.speed = this.lerp(this.renderState.speed, this.state.speed, dt * 3);
       this.renderState.pulse += dt * (1.2 + this.renderState.speed / 90);
+      this.renderState.transitionT = Math.min(1, this.renderState.transitionT + dt * 2.4);
 
       this.draw(time);
     }
@@ -139,18 +161,47 @@
       const kind = this.getTurnKind(this.state.turnType);
       const progress = this.renderState.progress;
       const path = this.buildPath(kind, progress, width, height);
+      const displayPoints = this.getDisplayPoints(path.points);
+      const displayCarIndex = this.findClosestPointIndex(displayPoints, path.carPoint.x, path.carPoint.y);
+      const displayPath = {
+        ...path,
+        points:displayPoints,
+        carIndex:displayCarIndex
+      };
       const carPoint = path.carPoint;
 
       ctx.clearRect(0, 0, width, height);
 
       this.drawBackground(ctx, width, height, time);
-      this.drawRouteGlow(ctx, path.points, "#0e2f42", 10, 0.14);
-      this.drawPath(ctx, path.points, "rgba(255,255,255,.12)", 9);
-      this.drawPath(ctx, path.points, "#f4fbff", 4.2);
-      this.drawApproachTrail(ctx, path.points, path.carIndex);
-      this.drawGuides(ctx, path, kind);
-      this.drawManeuver(ctx, path, kind, progress, time);
+      this.drawRouteGlow(ctx, displayPath.points, "#0e2f42", 10, 0.14);
+      this.drawPath(ctx, displayPath.points, "rgba(255,255,255,.12)", 9);
+      this.drawPath(ctx, displayPath.points, "#f4fbff", 4.2);
+      this.drawApproachTrail(ctx, displayPath.points, displayPath.carIndex);
+      this.drawGuides(ctx, displayPath, kind);
+      this.drawManeuver(ctx, displayPath, kind, progress, time);
       this.drawCar(ctx, carPoint, time);
+    }
+
+    getDisplayPoints(targetPoints){
+      const sampledTarget = this.samplePoints(targetPoints, 56);
+      if(!this.transitionFromPoints || this.renderState.transitionT >= 1){
+        this.displayPoints = sampledTarget;
+        this.transitionFromPoints = sampledTarget;
+        return sampledTarget;
+      }
+
+      const sampledFrom = this.samplePoints(this.transitionFromPoints, sampledTarget.length);
+      const eased = 1 - Math.pow(1 - this.renderState.transitionT, 3);
+      const blended = sampledTarget.map((point, index) => ({
+        x: this.lerp(sampledFrom[index].x, point.x, eased),
+        y: this.lerp(sampledFrom[index].y, point.y, eased)
+      }));
+
+      this.displayPoints = blended;
+      if(this.renderState.transitionT >= 0.999){
+        this.transitionFromPoints = sampledTarget;
+      }
+      return blended;
     }
 
     drawBackground(ctx, width, height, time){
@@ -306,6 +357,17 @@
         }
       }
       return bestIndex;
+    }
+
+    samplePoints(points, count){
+      if(!points || !points.length) return [];
+      if(points.length === count) return points.map(point => ({...point}));
+      const sampled = [];
+      for(let i = 0; i < count; i++){
+        const t = count === 1 ? 0 : i / (count - 1);
+        sampled.push(this.getPointAt(points, t));
+      }
+      return sampled;
     }
 
     drawPath(ctx, points, color, width){
