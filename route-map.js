@@ -163,8 +163,8 @@
     getHoldProgress(route){
       if(!route) return 0.22;
       if(route.kind === "straight") return 0.72;
-      if(route.kind === "round") return 0.2;
-      return 0.18;
+      if(route.kind === "round") return 0.14;
+      return 0.12;
     }
 
     getApproachProgress(route){
@@ -189,6 +189,17 @@
         return this.normalizeAngle((route.direction || 1) * Math.min(route.angle || 0, Math.PI * 0.9));
       }
       return this.normalizeAngle((route.direction || 1) * (route.angle || 0));
+    }
+
+    getDisplayProgress(){
+      if(!this.nextRoute){
+        return this.clamp(this.render.pathProgress, 0, 0.999);
+      }
+
+      const start = this.getHoldProgress(this.currentRoute);
+      const end = 1.04;
+      const t = this.clamp((this.render.pathProgress - start) / Math.max(0.001, end - start), 0, 1);
+      return this.lerp(start, 0.78, t);
     }
 
     lerp(from, to, factor){
@@ -250,10 +261,11 @@
       const ctx = this.ctx;
       const car = {x:this.width * 0.5, y:this.height - 15};
       const model = this.buildWorldModel();
-      const desiredHeading = this.getCameraHeading(model);
+      const displayProgress = this.getDisplayProgress();
+      const desiredHeading = this.getCameraHeading(model, displayProgress);
       const headingDelta = this.normalizeAngle(desiredHeading - this.render.heading);
       this.render.heading += headingDelta * this.clamp(dt * 4.8, 0.06, 0.26);
-      const projected = this.projectWorld(model, car, this.render.heading);
+      const projected = this.projectWorld(model, car, this.render.heading, displayProgress);
       const carIndex = this.findClosestPointIndex(projected.points, car.x, car.y);
 
       ctx.clearRect(0, 0, this.width, this.height);
@@ -413,9 +425,9 @@
       return 36;
     }
 
-    projectWorld(model, car, cameraHeading){
+    projectWorld(model, car, cameraHeading, displayProgress){
       const path = model.points;
-      const clampedProgress = this.clamp(this.render.pathProgress, 0, 0.999);
+      const clampedProgress = this.clamp(displayProgress, 0, 0.999);
       const carPos = this.getPointAt(path, clampedProgress);
       const rotation = -(cameraHeading || 0);
 
@@ -441,8 +453,8 @@
       };
     }
 
-    getCameraHeading(model){
-      const progress = this.clamp(this.render.pathProgress, 0, 0.999);
+    getCameraHeading(model, displayProgress){
+      const progress = this.clamp(displayProgress, 0, 0.999);
       const path = model.points;
       const turnStart = model.turnStartIndex / Math.max(1, path.length - 1);
       const turnEnd = model.turnEndIndex / Math.max(1, path.length - 1);
