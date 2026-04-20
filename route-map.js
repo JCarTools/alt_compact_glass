@@ -204,7 +204,7 @@
       const start = this.getHoldProgress(this.currentRoute);
       const end = 1.04;
       const t = this.clamp((this.render.pathProgress - start) / Math.max(0.001, end - start), 0, 1);
-      return this.lerp(start, 0.56, t);
+      return this.lerp(start, 0.72, t);
     }
 
     lerp(from, to, factor){
