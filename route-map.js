@@ -32,7 +32,8 @@
         targetProgress:0.12,
         heading:0,
         pulse:0,
-        carryHeading:0
+        carryHeading:0,
+        transitionBlend:0
       };
 
       this.lastFrame = performance.now();
@@ -87,6 +88,7 @@
       }
 
       this.nextRoute = route;
+      this.render.transitionBlend = 0;
     }
 
     updateGps(data){
@@ -233,6 +235,9 @@
 
       this.render.pathProgress += delta * this.clamp(dt * follow * speedBoost * 3.4, 0.02, 0.34);
       this.render.pulse += dt;
+      this.render.transitionBlend = this.nextRoute
+        ? Math.min(1, this.render.transitionBlend + dt * 1.8)
+        : 0;
 
       if(this.nextRoute && this.render.pathProgress >= 1.015){
         this.previousRoute = this.currentRoute;
@@ -299,6 +304,32 @@
         : 220;
       this.extendStraight(points, exitHeading, previewDistance, 18);
       segmentMeta.nextIndex = points.length - 1;
+
+      if(this.nextRoute){
+        const nextAnchorIndex = points.length - 1;
+        const basePoints = points.slice();
+        const preview = [];
+        preview.push(points[nextAnchorIndex]);
+        this.appendCurrentManeuver(preview, this.nextRoute, exitHeading);
+
+        const blend = this.render.transitionBlend;
+        const startBlend = Math.max(0.82, 0.92 - blend * 0.08);
+        const endBlend = 1.18;
+        const previewPoints = preview.slice(1);
+
+        previewPoints.forEach((point, index) => {
+          const t = previewPoints.length <= 1 ? 1 : index / (previewPoints.length - 1);
+          const offset = this.lerp(startBlend, endBlend, t);
+          const pathT = this.clamp(offset, 0, 0.999);
+          const tail = this.getPointAt(basePoints, pathT);
+          const mix = this.clamp((blend - 0.25) / 0.75, 0, 1);
+          points.push({
+            x:this.lerp(tail.x, point.x, mix),
+            y:this.lerp(tail.y, point.y, mix)
+          });
+        });
+      }
+
       this.extendStraight(points, exitHeading, 420, 24);
 
       return {
