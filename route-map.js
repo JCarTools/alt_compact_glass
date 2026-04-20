@@ -165,17 +165,21 @@
       }
     }
 
-    getHoldProgress(route){
+    getHoldProgress(route, model){
       if(!route) return 0.22;
       if(route.kind === "straight") return 0.72;
-      if(route.kind === "round") return 0.14;
-      return 0.12;
+      if(model && model.points && model.points.length > 1){
+        const turnStart = model.turnStartIndex / Math.max(1, model.points.length - 1);
+        return this.clamp(turnStart + 0.035, 0.16, 0.3);
+      }
+      if(route.kind === "round") return 0.18;
+      return 0.18;
     }
 
-    getApproachProgress(route){
+    getApproachProgress(route, model){
       if(!route) return 0.12;
 
-      const hold = this.getHoldProgress(route);
+      const hold = this.getHoldProgress(route, model);
       const far = 0.12;
       const d = Math.max(1, Number(route.turnDist) || 1);
 
@@ -201,7 +205,7 @@
         return this.clamp(this.render.pathProgress, 0, 0.999);
       }
 
-      const start = this.getHoldProgress(this.currentRoute);
+      const start = this.getHoldProgress(this.currentRoute, this.activeModel);
       const end = 1.04;
       const t = this.clamp((this.render.pathProgress - start) / Math.max(0.001, end - start), 0, 1);
       return this.lerp(start, 0.72, t);
@@ -232,9 +236,13 @@
     tick(dt, time){
       if(!this.ctx || !this.width || !this.height || !this.currentRoute) return;
 
+      if(!this.activeModel){
+        this.activeModel = this.buildWorldModel(this.currentRoute, this.render.carryHeading);
+      }
+
       const speedBoost = this.clamp(0.88 + this.state.speed / 65, 0.88, 1.8);
-      const target = this.state.visible ? this.getApproachProgress(this.currentRoute) : 0.12;
-      const holdProgress = this.getHoldProgress(this.currentRoute);
+      const target = this.state.visible ? this.getApproachProgress(this.currentRoute, this.activeModel) : 0.12;
+      const holdProgress = this.getHoldProgress(this.currentRoute, this.activeModel);
       this.render.targetProgress = this.nextRoute
         ? Math.max(target, 1.04)
         : Math.min(target, holdProgress);
