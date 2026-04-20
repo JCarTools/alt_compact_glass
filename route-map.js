@@ -68,7 +68,7 @@
 
       if(!this.currentRoute){
         this.currentRoute = route;
-        this.render.pathProgress = this.getTargetProgress(route.turnDist);
+        this.render.pathProgress = this.getApproachProgress(route);
         this.render.targetProgress = this.render.pathProgress;
         this.render.carryHeading = 0;
         return;
@@ -160,32 +160,26 @@
       }
     }
 
-    getTargetProgress(turnDist){
-      const d = Math.max(0, Number(turnDist) || 0);
-      if(d >= 10000) return 0.08;
-      if(d >= 5000) return 0.1;
-      if(d >= 2000) return 0.12;
-      if(d >= 1000) return 0.15;
-      if(d >= 500) return 0.19;
-      if(d >= 250) return 0.24;
-      if(d >= 120) return 0.29;
-      if(d >= 80) return 0.34;
-      if(d >= 50) return 0.39;
-      if(d >= 30) return 0.44;
-      if(d >= 20) return 0.48;
-      if(d >= 10) return 0.52;
-      if(d >= 5) return 0.58;
-      if(d >= 3) return 0.66;
-      if(d >= 2) return 0.76;
-      if(d >= 1) return 0.9;
-      return 1.02;
-    }
-
     getHoldProgress(route){
       if(!route) return 0.22;
       if(route.kind === "straight") return 0.72;
       if(route.kind === "round") return 0.44;
       return 0.48;
+    }
+
+    getApproachProgress(route){
+      if(!route) return 0.12;
+
+      const hold = this.getHoldProgress(route);
+      const far = 0.12;
+      const d = Math.max(1, Number(route.turnDist) || 1);
+
+      if(d >= 1000){
+        return far;
+      }
+
+      const t = this.clamp((1000 - d) / 999, 0, 1);
+      return this.lerp(far, hold, t);
     }
 
     getRouteExitHeading(route){
@@ -223,7 +217,7 @@
       if(!this.ctx || !this.width || !this.height || !this.currentRoute) return;
 
       const speedBoost = this.clamp(0.88 + this.state.speed / 65, 0.88, 1.8);
-      const target = this.state.visible ? this.getTargetProgress(this.currentRoute.turnDist) : 0.12;
+      const target = this.state.visible ? this.getApproachProgress(this.currentRoute) : 0.12;
       const holdProgress = this.getHoldProgress(this.currentRoute);
       this.render.targetProgress = this.nextRoute
         ? Math.max(target, 1.04)
