@@ -204,7 +204,7 @@
       const start = this.getHoldProgress(this.currentRoute);
       const end = 1.04;
       const t = this.clamp((this.render.pathProgress - start) / Math.max(0.001, end - start), 0, 1);
-      return this.lerp(start, 0.78, t);
+      return this.lerp(start, 0.56, t);
     }
 
     lerp(from, to, factor){
@@ -308,11 +308,11 @@
       const exitHeading = this.getPathHeading(points, points.length - 4, points.length - 1);
       segmentMeta.exitHeading = exitHeading;
 
-      this.extendStraight(points, exitHeading, 180, 16);
+      this.extendStraight(points, exitHeading, 240, 18);
       segmentMeta.nextIndex = points.length - 1;
-      this.extendStraight(points, exitHeading, 220, 18);
+      this.extendStraight(points, exitHeading, 320, 22);
       segmentMeta.nextIndex = points.length - 1;
-      this.extendStraight(points, exitHeading, 520, 28);
+      this.extendStraight(points, exitHeading, 760, 34);
 
       return {
         points,
@@ -334,9 +334,9 @@
       const preview = [start];
       const anchorHeading = model.exitHeading || 0;
 
-      this.extendStraight(preview, anchorHeading, 220, 14);
-      this.appendCurrentManeuver(preview, nextRoute, anchorHeading);
-      this.extendStraight(preview, this.getRouteExitHeading(nextRoute) + anchorHeading, 260, 16);
+      // Do not alter the visible current maneuver geometry.
+      // Only push the future farther down the same straight.
+      this.extendStraight(preview, anchorHeading, 900, 36);
 
       const previewPoints = preview.slice(1).map(point => ({x:point.x, y:point.y}));
       model.points = basePoints.concat(previewPoints);
