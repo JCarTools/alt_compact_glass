@@ -26,6 +26,7 @@
       this.previousRoute = null;
       this.currentRoute = null;
       this.nextRoute = null;
+      this.activeModel = null;
 
       this.render = {
         pathProgress:0.12,
@@ -71,6 +72,7 @@
         this.render.pathProgress = this.getApproachProgress(route);
         this.render.targetProgress = this.render.pathProgress;
         this.render.carryHeading = 0;
+        this.activeModel = this.buildWorldModel(this.currentRoute, this.render.carryHeading);
         return;
       }
 
@@ -87,6 +89,9 @@
       }
 
       this.nextRoute = route;
+      if(this.activeModel){
+        this.extendModelTail(this.activeModel, route);
+      }
     }
 
     updateGps(data){
@@ -252,6 +257,7 @@
         this.nextRoute = null;
         this.render.heading = this.render.carryHeading;
         this.render.pathProgress = 0.12;
+        this.activeModel = this.buildWorldModel(this.currentRoute, this.render.carryHeading);
       }
 
       this.draw(time, dt);
@@ -260,7 +266,7 @@
     draw(time, dt){
       const ctx = this.ctx;
       const car = {x:this.width * 0.5, y:this.height - 15};
-      const model = this.buildWorldModel();
+      const model = this.activeModel || this.buildWorldModel(this.currentRoute, this.render.carryHeading);
       const displayProgress = this.getDisplayProgress();
       const desiredHeading = this.getCameraHeading(model, displayProgress);
       const headingDelta = this.normalizeAngle(desiredHeading - this.render.heading);
@@ -278,7 +284,7 @@
       this.drawCar(ctx, car, time);
     }
 
-    buildWorldModel(){
+    buildWorldModel(route, entryHeading = 0){
       const points = [];
       const segmentMeta = {
         maneuverIndex:0,
@@ -291,28 +297,22 @@
 
       points.push({x:0, y:180});
 
-      const entryHeading = this.render.carryHeading || 0;
       segmentMeta.entryHeading = entryHeading;
 
       this.extendStraight(points, entryHeading, 180, 18);
       segmentMeta.maneuverIndex = points.length - 1;
       segmentMeta.turnStartIndex = points.length - 1;
 
-      this.appendCurrentManeuver(points, this.currentRoute, entryHeading);
+      this.appendCurrentManeuver(points, route, entryHeading);
       segmentMeta.turnEndIndex = points.length - 1;
       const exitHeading = this.getPathHeading(points, points.length - 4, points.length - 1);
       segmentMeta.exitHeading = exitHeading;
 
       this.extendStraight(points, exitHeading, 180, 16);
       segmentMeta.nextIndex = points.length - 1;
-
-      const previewDistance = this.nextRoute
-        ? Math.max(220, this.getPreviewDistance(this.nextRoute.turnDist) + 140)
-        : 220;
-      this.extendStraight(points, exitHeading, previewDistance, 18);
+      this.extendStraight(points, exitHeading, 220, 18);
       segmentMeta.nextIndex = points.length - 1;
-
-      this.extendStraight(points, exitHeading, 420, 24);
+      this.extendStraight(points, exitHeading, 520, 28);
 
       return {
         points,
@@ -323,6 +323,28 @@
         entryHeading:segmentMeta.entryHeading,
         exitHeading:segmentMeta.exitHeading
       };
+    }
+
+    extendModelTail(model, nextRoute){
+      if(!model || !nextRoute) return;
+      if(model.futureRoute && this.isSameRoute(model.futureRoute, nextRoute)) return;
+
+      const basePoints = model.points.slice();
+      const start = basePoints[basePoints.length - 1];
+      const preview = [start];
+      const anchorHeading = model.exitHeading || 0;
+
+      this.extendStraight(preview, anchorHeading, 220, 14);
+      this.appendCurrentManeuver(preview, nextRoute, anchorHeading);
+      this.extendStraight(preview, this.getRouteExitHeading(nextRoute) + anchorHeading, 260, 16);
+
+      const previewPoints = preview.slice(1).map(point => ({x:point.x, y:point.y}));
+      model.points = basePoints.concat(previewPoints);
+      model.futureRoute = {
+        turnType:nextRoute.turnType,
+        turnDist:nextRoute.turnDist
+      };
+      model.nextIndex = basePoints.length - 1;
     }
 
     extendStraight(points, heading, distance, steps){
