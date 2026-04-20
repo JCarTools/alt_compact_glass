@@ -163,8 +163,8 @@
     getHoldProgress(route){
       if(!route) return 0.22;
       if(route.kind === "straight") return 0.72;
-      if(route.kind === "round") return 0.44;
-      return 0.48;
+      if(route.kind === "round") return 0.2;
+      return 0.18;
     }
 
     getApproachProgress(route){
