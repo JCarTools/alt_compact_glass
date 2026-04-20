@@ -305,6 +305,7 @@
         : 220;
       this.extendStraight(points, exitHeading, previewDistance, 18);
       segmentMeta.nextIndex = points.length - 1;
+      this.extendStraight(points, exitHeading, 420, 24);
 
       return {
         points,
